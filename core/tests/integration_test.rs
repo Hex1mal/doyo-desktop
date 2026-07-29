@@ -678,7 +678,7 @@ fn test_settings_repository_lists_prefixed_values() {
 
 #[test]
 fn test_backup_service_create_prune_and_restore() {
-    let root = std::env::temp_dir().join(format!("todoapp-backup-test-{}", uuid::Uuid::now_v7()));
+    let root = std::env::temp_dir().join(format!("doyo-backup-test-{}", uuid::Uuid::now_v7()));
     let backup_dir = root.join("backups");
     std::fs::create_dir_all(&root).unwrap();
     let db_path = root.join("doyo.db");
