@@ -1,0 +1,114 @@
+# Doyo
+
+Doyo is a local-first desktop task manager for Linux, built with Tauri, SvelteKit, Rust, and SQLite. It keeps your workspaces, tasks, tags, calendar planning, focus sessions, habits, countdowns, and settings on your own machine.
+
+## Privacy
+
+Doyo works offline and stores data locally. It does not require an account, subscription, analytics service, or cloud backend.
+
+## Features
+
+- Recursive hierarchy: Workspace -> Group/Subgroup -> Task/Subtask with unlimited depth.
+- Smart views: Inbox, Today, Next 7 Days, Completed, Trash, Search, Tags, and Filters.
+- Calendar: Month, Week, Day, and Agenda views with task scheduling and time blocks.
+- Kanban and Timeline views over the same task records.
+- Productivity tools: Pomodoro, Stopwatch, Timeboxing, Eisenhower Matrix, Eat the Frog, Flowtime, GTD, and Pareto.
+- Habits and Countdowns with reminders.
+- Statistics for tasks, focus sessions, and habits.
+- Local backup, restore, import, and export tools.
+
+## Screenshots
+
+Screenshots are not committed by default so the repository stays small. Add release screenshots under `docs/assets/` when publishing a public release.
+
+## Technology Stack
+
+- Tauri 2 desktop shell
+- SvelteKit and Svelte 5 frontend
+- Rust core services
+- SQLite with additive migrations
+- Vitest and Rust integration tests
+
+## Installation
+
+For Debian-based Linux distributions, install the generated package:
+
+```bash
+sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+```
+
+See [Installation](docs/INSTALLATION.md) for system dependencies, build artifacts, and desktop integration notes.
+
+## Build From Source
+
+```bash
+npm ci
+npm run check
+npm run test:unit
+cargo test
+npm run build
+npm run tauri build
+```
+
+Development server:
+
+```bash
+npm run tauri dev
+```
+
+## Keyboard Shortcuts
+
+- `Ctrl+K`: Command palette
+- `Ctrl+P`: Quick open
+- `Enter`: Create or confirm where supported
+- `Space`: Select focused node
+- `Shift+F10` or Menu key: Open the context menu for the selected row
+
+Desktop shortcuts, such as `Super+T`, are configured through the operating system.
+
+## Data Location
+
+Doyo uses the Tauri application data directory for identifier `io.github.sembee.doyo`.
+
+Typical Linux path:
+
+```text
+~/.local/share/io.github.sembee.doyo/
+```
+
+Database file:
+
+```text
+doyo.db
+```
+
+When first launched after upgrading from the older TodoApp identifier, Doyo copies data from `~/.local/share/com.todoapp.desktop/` if the new Doyo database does not already exist. The old directory is left in place as a recovery copy.
+
+## Backup And Restore
+
+Use Settings -> Data and Backup to create or restore local database backups. Backups are stored in the app data directory under `backups/` and are not intended to be committed to Git.
+
+## Project Structure
+
+```text
+core/        Rust core library and SQLite services
+src/         SvelteKit frontend
+src-tauri/   Tauri shell and desktop packaging
+docs/        Public documentation
+plugins/     Local plugin examples
+```
+
+## Roadmap
+
+- Packaging polish and signed release artifacts
+- More documentation screenshots
+- Optional importers and exporters for common task formats
+- Accessibility and keyboard workflow refinements
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Doyo is licensed under the GNU Affero General Public License v3.0. The existing project license was AGPL-3.0, so this release keeps that license rather than switching to MIT.

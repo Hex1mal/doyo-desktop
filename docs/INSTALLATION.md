@@ -1,0 +1,63 @@
+# Installation
+
+## System Dependencies
+
+On Debian-based Linux distributions:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  curl \
+  libwebkit2gtk-4.1-dev \
+  libgtk-3-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  patchelf
+```
+
+Install Node.js 22 and Rust using your preferred package manager or official installers.
+
+## Build A Package
+
+```bash
+npm ci
+npm run tauri build
+```
+
+Generated Linux packages are written under:
+
+```text
+src-tauri/target/release/bundle/
+```
+
+## Install The Debian Package
+
+```bash
+sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+```
+
+## Desktop Entry
+
+The package installs a desktop entry for Doyo. A user-local desktop entry can also be placed in:
+
+```text
+~/.local/share/applications/
+```
+
+It should use:
+
+- `Name=Doyo`
+- `Exec=doyo`
+- `Icon=io.github.sembee.doyo`
+- `Categories=Office;Utility;`
+
+## Data Location
+
+Linux app data:
+
+```text
+~/.local/share/io.github.sembee.doyo/
+```
+
+Old TodoApp data is not removed automatically. Keep it until you have confirmed Doyo has migrated and loaded your data.
