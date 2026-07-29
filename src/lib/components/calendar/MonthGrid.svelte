@@ -2,6 +2,7 @@
   import { calendarStore } from '$lib/stores/calendar.svelte';
   import type { Node, TimeBlock } from '$lib/types/node';
   import { blocksByDay, localDayKey, monthGrid, tasksByDay } from '$lib/utils/calendar';
+  import { onMount } from 'svelte';
   import CalendarItem from './CalendarItem.svelte';
 
   let {
@@ -24,6 +25,15 @@
   let weekdays = $derived(
     days.slice(0, 7).map((day) => day.toLocaleDateString(undefined, { weekday: 'short' })),
   );
+  let today = $state(new Date());
+  let todayKey = $derived(localDayKey(today));
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      today = new Date();
+    }, 60_000);
+    return () => clearInterval(timer);
+  });
 
   function dropOnDay(event: DragEvent) {
     event.preventDefault();
@@ -43,6 +53,7 @@
     <section
       class="day-cell"
       class:outside={day.getMonth() !== currentDate.getMonth()}
+      class:today={localDayKey(day) === todayKey}
       role="group"
       aria-label={day.toLocaleDateString()}
       data-calendar-drop="day"
@@ -52,6 +63,7 @@
     >
       <div class="day-head">
         <span>{day.getDate()}</span>
+        {#if localDayKey(day) === todayKey}<small>Today</small>{/if}
         <button title="New time block" onclick={() => calendarStore.createBlock(day, 9)}>+</button>
       </div>
       <div class="day-items">
@@ -100,6 +112,10 @@
     opacity: 0.55;
     background: var(--bg-panel);
   }
+  .day-cell.today {
+    box-shadow: inset 0 0 0 2px var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg-app));
+  }
   .day-head {
     display: flex;
     justify-content: space-between;
@@ -108,6 +124,16 @@
     font-size: var(--text-xs);
     font-weight: 800;
     margin-bottom: 5px;
+    gap: 6px;
+  }
+  .day-head small {
+    margin-right: auto;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 1px 5px;
+    color: var(--accent);
+    font-size: 9px;
+    line-height: 1.4;
   }
   .day-head button {
     border: 1px solid var(--border);

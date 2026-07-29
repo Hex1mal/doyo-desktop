@@ -404,6 +404,13 @@
               setAppearance('fontScale', Number((event.target as HTMLInputElement).value))}
           />
         </label>
+        <div class="zoom-control">
+          <span>Application zoom</span>
+          <strong>{Math.round(uiStore.zoomLevel * 100)}%</strong>
+          <button onclick={() => uiStore.zoomOut()}>Zoom out</button>
+          <button onclick={() => uiStore.resetZoom()}>Reset</button>
+          <button onclick={() => uiStore.zoomIn()}>Zoom in</button>
+        </div>
         <label
           >Accent color
           <input
@@ -473,6 +480,9 @@
       <div class="shortcut-grid">
         <span>Ctrl+K</span><strong>Command palette</strong>
         <span>Ctrl+P</span><strong>Quick open</strong>
+        <span>Ctrl++ / Ctrl+=</span><strong>Zoom in</strong>
+        <span>Ctrl+-</span><strong>Zoom out</strong>
+        <span>Ctrl+0</span><strong>Reset zoom</strong>
         <span>Shift+F10</span><strong>Context menu</strong>
         <span>Ctrl+Enter</span><strong>Complete task</strong>
       </div>
@@ -559,6 +569,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .zoom-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+    align-items: center;
+    gap: 8px;
+    max-width: 520px;
+    color: var(--text-secondary);
+  }
+  .zoom-control strong {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
   }
   .backup-row {
     justify-content: space-between;

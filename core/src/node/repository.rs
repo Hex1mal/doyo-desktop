@@ -1,11 +1,59 @@
 use crate::db::Database;
 use crate::error::{Error, Result};
 use crate::node::model::*;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, Transaction};
 use uuid::Uuid;
 
 pub struct NodeRepository {
     pub db: std::sync::Arc<Database>,
+}
+
+fn normalize_sibling_positions(
+    tx: &Transaction<'_>,
+    parent_id: Option<&str>,
+    exclude_id: Option<&str>,
+    insert: Option<(&str, usize)>,
+    now: &str,
+) -> Result<()> {
+    let mut ids: Vec<String> = match parent_id {
+        Some(parent_id) => {
+            let mut stmt = tx.prepare(
+                "SELECT id FROM nodes WHERE parent_id = ?1 AND deleted_at IS NULL ORDER BY position, created_at",
+            )?;
+            let rows = stmt
+                .query_map(params![parent_id], |row| row.get::<_, String>(0))?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            rows
+        }
+        None => {
+            let mut stmt = tx.prepare(
+                "SELECT id FROM nodes WHERE parent_id IS NULL AND deleted_at IS NULL ORDER BY position, created_at",
+            )?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            rows
+        }
+    };
+
+    if let Some(exclude_id) = exclude_id {
+        ids.retain(|id| id != exclude_id);
+    }
+
+    if let Some((insert_id, target_index)) = insert {
+        ids.retain(|id| id != insert_id);
+        let index = target_index.min(ids.len());
+        ids.insert(index, insert_id.to_string());
+    }
+
+    for (index, id) in ids.iter().enumerate() {
+        tx.execute(
+            "UPDATE nodes SET position = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
+            params![index as f64 * 1000.0, now, id],
+        )?;
+    }
+
+    Ok(())
 }
 
 impl NodeRepository {
@@ -176,6 +224,20 @@ impl NodeRepository {
             .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
 
         Ok(node)
+    }
+
+    pub fn replace_properties(&self, id: &str, properties: &NodeProperties) -> Result<Node> {
+        let conn = self.db.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        let props_str = serde_json::to_string(properties)?;
+        conn.execute(
+            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
+            params![&props_str, &now, id],
+        )?;
+        conn.query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
+            Ok(map_node(row))
+        })
+        .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))
     }
 
     pub fn soft_delete(&self, id: &str, cascade: bool) -> Result<()> {
@@ -478,17 +540,79 @@ impl NodeRepository {
         Ok(())
     }
 
+    pub fn move_node_ordered(
+        &self,
+        id: &str,
+        new_parent_id: Option<&str>,
+        target_index: usize,
+    ) -> Result<()> {
+        let mut conn = self.db.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let old_parent_id: Option<String> = tx.query_row(
+            "SELECT parent_id FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
+            params![id],
+            |row| row.get(0),
+        )?;
+
+        if let Some(ref parent_id) = new_parent_id {
+            let cycle_count: i32 = tx.query_row(
+                "WITH RECURSIVE descendants AS (
+                    SELECT id FROM nodes WHERE id = ?1
+                    UNION ALL
+                    SELECT n.id FROM nodes n JOIN descendants d ON n.parent_id = d.id
+                )
+                SELECT COUNT(*) FROM descendants WHERE id = ?2",
+                params![id, parent_id],
+                |row| row.get(0),
+            )?;
+            if cycle_count > 0 {
+                return Err(Error::CycleDetected);
+            }
+        }
+
+        tx.execute(
+            "UPDATE nodes SET parent_id = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
+            params![&new_parent_id, &now, id],
+        )?;
+
+        normalize_sibling_positions(&tx, old_parent_id.as_deref(), Some(id), None, &now)?;
+        normalize_sibling_positions(&tx, new_parent_id, None, Some((id, target_index)), &now)?;
+
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn reorder_children(&self, parent_id: &str, child_ids: &[String]) -> Result<()> {
-        let conn = self.db.conn.lock().unwrap();
+        let mut conn = self.db.conn.lock().unwrap();
+        let tx = conn.transaction()?;
         let now = chrono::Utc::now().to_rfc3339();
 
         for (i, child_id) in child_ids.iter().enumerate() {
-            conn.execute(
+            tx.execute(
                 "UPDATE nodes SET position = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3 AND parent_id = ?4",
                 params![i as f64 * 1000.0, &now, child_id, parent_id],
             )?;
         }
 
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn reorder_root_children(&self, child_ids: &[String]) -> Result<()> {
+        let mut conn = self.db.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        for (i, child_id) in child_ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE nodes SET position = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3 AND parent_id IS NULL",
+                params![i as f64 * 1000.0, &now, child_id],
+            )?;
+        }
+
+        tx.commit()?;
         Ok(())
     }
 

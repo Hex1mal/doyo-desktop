@@ -2,6 +2,7 @@
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore, type CompletionPolicy } from '$lib/stores/ui.svelte';
   import * as api from '$lib/api/client';
+  import { formatDurationInput } from '$lib/utils/scheduling';
 
   const completionPolicies: CompletionPolicy[] = ['individual', 'ask', 'cascade'];
 
@@ -57,6 +58,17 @@
         nodeStore.getTags(n.id).filter((tag) => tag.toLowerCase() !== name.toLowerCase()),
       );
     }
+  }
+
+  function repeatLabel(pattern?: string) {
+    if (!pattern) return 'No repeat';
+    return pattern.charAt(0).toUpperCase() + pattern.slice(1);
+  }
+
+  function reminderLabel(offset?: number | null) {
+    if (offset === undefined || offset === null) return 'No reminder';
+    if (offset === 0) return 'At due time';
+    return `${Math.abs(offset)} minutes before`;
   }
 </script>
 
@@ -155,20 +167,21 @@
       </div>
 
       <div class="section">
-        <div class="label">Due Date</div>
-        <div class="due-date">
+        <div class="label">Schedule</div>
+        <div class="schedule-summary">
           {#if node.properties.dueDate}
-            <span>{new Date(node.properties.dueDate).toLocaleDateString()}</span>
-            <button class="clear-btn" onclick={() => nodeStore.setDueDate(node.id, null)}
-              >Clear</button
-            >
+            <span>{new Date(node.properties.dueDate).toLocaleString()}</span>
           {:else}
             <span class="no-date">No due date</span>
-            <button
-              class="set-btn"
-              onclick={() => nodeStore.setDueDate(node.id, new Date().toISOString())}>Today</button
-            >
           {/if}
+          <span>{reminderLabel(node.properties.reminders?.[0]?.offsetMinutes)}</span>
+          <span>{repeatLabel(node.properties.recurrence?.pattern)}</span>
+          <span>
+            {node.properties.estimatedDurationMinutes
+              ? formatDurationInput(node.properties.estimatedDurationMinutes)
+              : 'No estimate'}
+          </span>
+          <button class="set-btn" onclick={() => uiStore.openDueDatePrompt()}>Schedule...</button>
         </div>
       </div>
 
@@ -453,9 +466,8 @@
     background: var(--text-tertiary);
     color: white;
   }
-  .due-date {
-    display: flex;
-    align-items: center;
+  .schedule-summary {
+    display: grid;
     gap: var(--space-2);
     font-size: var(--text-sm);
     color: var(--text-secondary);
@@ -463,20 +475,20 @@
   .no-date {
     color: var(--text-tertiary);
   }
-  .clear-btn,
   .set-btn {
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 6px 10px;
     font-size: var(--text-xs);
-    background: transparent;
+    background: var(--bg-input);
     cursor: pointer;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
+    font-weight: 700;
   }
-  .clear-btn:hover,
   .set-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+    border-color: var(--accent);
   }
   .body-editor {
     width: 100%;

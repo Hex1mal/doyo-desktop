@@ -14,6 +14,12 @@ Workspace
 
 There is no fixed nesting limit. Context menus show only valid actions for the selected item.
 
+## Sidebar And Navigation
+
+The top sidebar area keeps secondary views compact so the Workspaces tree receives most of the available height. Tags and saved filters are available from compact expandable sections. Long workspace and group names are truncated in the tree and can be read from the row tooltip.
+
+Use Favorites for shortcuts to important workspaces, groups, tasks, or subtasks. Opening Favorites clears the previous workspace view and shows only current non-deleted favorites. Selecting a favorite reveals the original item in its hierarchy.
+
 ## Main Views
 
 - **Today**: Active tasks due today.
@@ -36,8 +42,28 @@ There is no fixed nesting limit. Context menus show only valid actions for the s
 
 - Right-click a row to open contextual actions.
 - Use `Shift+F10` or the Menu key to open the selected row's context menu.
-- Use the inspector to edit title, description, priority, due date, tags, and task-specific metadata.
+- Use Change color in a row context menu to set a subtle color accent. Choose Default to remove the custom color.
+- Drag workspaces up or down in the Workspaces tree, or use Move up and Move down from a workspace context menu.
+- Drag groups, subgroups, tasks, and subtasks in the main tree to reorder siblings or move into valid parents. Cross-parent moves ask for confirmation and keep the existing descendants.
+- Use the inspector to edit title, description, priority, schedule, tags, and task-specific metadata.
 - Drag supported cards/items in Calendar, Kanban, Timeline, Matrix, and GTD views.
+
+## Scheduling Tasks
+
+Open Schedule from a task row or the inspector to set date, time, reminder, repeat, and estimated duration together.
+
+- Pick a date from the calendar grid or use quick actions such as Today, Tomorrow, 3 Days Later, This Sunday, or No Date.
+- Type time in 24-hour form such as `09:00`, `14:30`, or shorthand such as `930`.
+- Reminder choices require a due date. Relative reminders require a task date/time that can be calculated.
+- Repeat uses Doyo's recurrence model, including daily, weekly, and monthly rules.
+- Estimated duration is a planned task estimate, such as `30m`, `1h`, or `1h 30m`. It is separate from completed Focus or Pomodoro session history.
+- Cancel closes the modal without saving. Done validates and saves the scheduling fields atomically.
+
+Today's date is shown with a visible ring and label in Calendar views and in the scheduling date picker. The selected date and today remain visually distinct.
+
+## Zoom
+
+Use `Ctrl++` or `Ctrl+=` to zoom in, `Ctrl+-` to zoom out, and `Ctrl+0` to reset. The same controls are available in Settings -> Appearance. Zoom applies to the complete application interface and persists after restart.
 
 ## Completion Policies
 
