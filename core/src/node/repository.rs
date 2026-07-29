@@ -51,9 +51,11 @@ impl NodeRepository {
             params![&id, &input.title, &input.body],
         )?;
 
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", params![&id], |row| {
-            Ok(map_node(row))
-        }).map_err(|_| Error::NotFound("Failed to retrieve created node".into()))?;
+        let node = conn
+            .query_row("SELECT * FROM nodes WHERE id = ?1", params![&id], |row| {
+                Ok(map_node(row))
+            })
+            .map_err(|_| Error::NotFound("Failed to retrieve created node".into()))?;
 
         Ok(node)
     }
@@ -80,24 +82,34 @@ impl NodeRepository {
         let conn = self.db.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
         let version: i32 = conn.query_row(
-            "SELECT version + 1 FROM nodes WHERE id = ?1", params![id], |row| row.get(0)
+            "SELECT version + 1 FROM nodes WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
         )?;
 
         if let Some(ref title) = changes.title {
-            conn.execute("UPDATE nodes SET title = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
-                params![title, &now, version, id])?;
+            conn.execute(
+                "UPDATE nodes SET title = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
+                params![title, &now, version, id],
+            )?;
         }
         if let Some(ref body) = changes.body {
-            conn.execute("UPDATE nodes SET body = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
-                params![body, &now, version, id])?;
+            conn.execute(
+                "UPDATE nodes SET body = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
+                params![body, &now, version, id],
+            )?;
         }
         if let Some(ref node_type) = changes.node_type {
-            conn.execute("UPDATE nodes SET type = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
-                params![node_type.as_str(), &now, version, id])?;
+            conn.execute(
+                "UPDATE nodes SET type = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
+                params![node_type.as_str(), &now, version, id],
+            )?;
         }
         if let Some(is_collapsed) = changes.is_collapsed {
-            conn.execute("UPDATE nodes SET is_collapsed = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
-                params![is_collapsed as i32, &now, version, id])?;
+            conn.execute(
+                "UPDATE nodes SET is_collapsed = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
+                params![is_collapsed as i32, &now, version, id],
+            )?;
         }
         if let Some(ref props) = changes.properties {
             // Merge partial properties with existing (never wipe unspecified fields)
@@ -109,23 +121,45 @@ impl NodeRepository {
             let mut existing: NodeProperties =
                 serde_json::from_str(&existing_str).unwrap_or_default();
             // Field-level merge (full structs from set_due_date/set_priority already merged)
-            if props.due_date.is_some() { existing.due_date = props.due_date; }
-            if props.start_date.is_some() { existing.start_date = props.start_date; }
-            if props.priority.is_some() { existing.priority = props.priority; }
-            if props.reminders.is_some() { existing.reminders = props.reminders.clone(); }
-            if props.recurrence.is_some() { existing.recurrence = props.recurrence.clone(); }
+            if props.due_date.is_some() {
+                existing.due_date = props.due_date;
+            }
+            if props.start_date.is_some() {
+                existing.start_date = props.start_date;
+            }
+            if props.priority.is_some() {
+                existing.priority = props.priority;
+            }
+            if props.reminders.is_some() {
+                existing.reminders = props.reminders.clone();
+            }
+            if props.recurrence.is_some() {
+                existing.recurrence = props.recurrence.clone();
+            }
             if props.estimated_duration_minutes.is_some() {
                 existing.estimated_duration_minutes = props.estimated_duration_minutes;
             }
-            if props.custom.is_some() { existing.custom = props.custom.clone(); }
-            if props.icon.is_some() { existing.icon = props.icon.clone(); }
-            if props.color.is_some() { existing.color = props.color.clone(); }
-            if props.pinned.is_some() { existing.pinned = props.pinned; }
-            if props.favorite.is_some() { existing.favorite = props.favorite; }
+            if props.custom.is_some() {
+                existing.custom = props.custom.clone();
+            }
+            if props.icon.is_some() {
+                existing.icon = props.icon.clone();
+            }
+            if props.color.is_some() {
+                existing.color = props.color.clone();
+            }
+            if props.pinned.is_some() {
+                existing.pinned = props.pinned;
+            }
+            if props.favorite.is_some() {
+                existing.favorite = props.favorite;
+            }
 
             let props_str = serde_json::to_string(&existing)?;
-            conn.execute("UPDATE nodes SET properties = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
-                params![&props_str, &now, version, id])?;
+            conn.execute(
+                "UPDATE nodes SET properties = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
+                params![&props_str, &now, version, id],
+            )?;
         }
 
         if changes.title.is_some() || changes.body.is_some() {
@@ -135,9 +169,11 @@ impl NodeRepository {
             )?;
         }
 
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
-            Ok(map_node(row))
-        }).map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
+        let node = conn
+            .query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
+                Ok(map_node(row))
+            })
+            .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
 
         Ok(node)
     }
@@ -155,9 +191,10 @@ impl NodeRepository {
                         UNION ALL
                         SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
                     )
-                    SELECT id FROM subtree WHERE id != ?1"
+                    SELECT id FROM subtree WHERE id != ?1",
                 )?;
-                let ids = stmt.query_map(params![id], |row| row.get::<_, String>(0))?
+                let ids = stmt
+                    .query_map(params![id], |row| row.get::<_, String>(0))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 ids
             };
@@ -294,7 +331,10 @@ impl NodeRepository {
                 ],
             )?;
         }
-        conn.execute("DELETE FROM nodes_fts WHERE node_id = ?1", params![&node.id])?;
+        conn.execute(
+            "DELETE FROM nodes_fts WHERE node_id = ?1",
+            params![&node.id],
+        )?;
         conn.execute(
             "INSERT INTO nodes_fts (node_id, title, body, tags) VALUES (?1, ?2, ?3, '')",
             params![&node.id, &node.title, &node.body],
@@ -344,14 +384,18 @@ impl NodeRepository {
         let tx = conn.transaction()?;
         let now = chrono::Utc::now().to_rfc3339();
 
-        let node_type: String = tx.query_row(
-            "SELECT type FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
-            params![id],
-            |row| row.get(0),
-        ).map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
+        let node_type: String = tx
+            .query_row(
+                "SELECT type FROM nodes WHERE id = ?1 AND deleted_at IS NULL",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
 
         if node_type != "Task" {
-            return Err(Error::Validation("Only tasks and subtasks can be completed".into()));
+            return Err(Error::Validation(
+                "Only tasks and subtasks can be completed".into(),
+            ));
         }
 
         if completed {
@@ -396,9 +440,11 @@ impl NodeRepository {
             )?;
         }
 
-        let node = tx.query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
-            Ok(map_node(row))
-        }).map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
+        let node = tx
+            .query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
+                Ok(map_node(row))
+            })
+            .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))?;
         tx.commit()?;
         Ok(node)
     }
@@ -481,7 +527,8 @@ impl NodeRepository {
                     FROM nodes n JOIN subtree s ON n.parent_id = s.id
                     WHERE n.deleted_at IS NULL AND s.depth < {}
                 )
-                SELECT * FROM subtree WHERE id != ?1 ORDER BY depth, position", d
+                SELECT * FROM subtree WHERE id != ?1 ORDER BY depth, position",
+                d
             ),
             None => "WITH RECURSIVE subtree AS (
                 SELECT *, 0 AS depth FROM nodes WHERE id = ?1 AND deleted_at IS NULL
@@ -490,11 +537,13 @@ impl NodeRepository {
                 FROM nodes n JOIN subtree s ON n.parent_id = s.id
                 WHERE n.deleted_at IS NULL
             )
-            SELECT * FROM subtree WHERE id != ?1 ORDER BY depth, position".to_string(),
+            SELECT * FROM subtree WHERE id != ?1 ORDER BY depth, position"
+                .to_string(),
         };
 
         let mut stmt = conn.prepare(&sql)?;
-        let nodes = stmt.query_map(params![id], |row| Ok(map_node(row)))?
+        let nodes = stmt
+            .query_map(params![id], |row| Ok(map_node(row)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(nodes)
     }
@@ -508,19 +557,20 @@ impl NodeRepository {
                 SELECT n.*, a.level + 1
                 FROM nodes n JOIN ancestors a ON n.id = a.parent_id
             )
-            SELECT * FROM ancestors WHERE id != ?1 ORDER BY level DESC"
+            SELECT * FROM ancestors WHERE id != ?1 ORDER BY level DESC",
         )?;
 
-        let nodes = stmt.query_map(params![id], |row| Ok(map_node(row)))?
+        let nodes = stmt
+            .query_map(params![id], |row| Ok(map_node(row)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(nodes)
     }
 
     pub fn get_full_tree(&self, root_id: Option<&str>) -> Result<Vec<Node>> {
-        let conn = self.db.conn.lock().unwrap();
         match root_id {
             Some(id) => self.get_descendants(id, None),
             None => {
+                let conn = self.db.conn.lock().unwrap();
                 let mut stmt = conn.prepare(
                     "WITH RECURSIVE full_tree AS (
                         SELECT *, 0 AS depth FROM nodes WHERE parent_id IS NULL AND deleted_at IS NULL
@@ -531,7 +581,8 @@ impl NodeRepository {
                     )
                     SELECT * FROM full_tree ORDER BY depth, position"
                 )?;
-                let nodes = stmt.query_map([], |row| Ok(map_node(row)))?
+                let nodes = stmt
+                    .query_map([], |row| Ok(map_node(row)))?
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(nodes)
             }
@@ -545,16 +596,23 @@ impl NodeRepository {
             "SELECT n.*, snippet(nodes_fts, 1, '<mark>', '</mark>', '...', 40) AS snippet,
              rank FROM nodes_fts
              JOIN nodes n ON nodes_fts.node_id = n.id
-             WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL"
+             WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL",
         );
 
-        if filters.node_types.is_some() || filters.priority.is_some() || filters.is_completed.is_some() {
+        if filters.node_types.is_some()
+            || filters.priority.is_some()
+            || filters.is_completed.is_some()
+        {
             if let Some(ref types) = filters.node_types {
-                let type_list: Vec<String> = types.iter().map(|t| format!("'{}'", t.as_str())).collect();
+                let type_list: Vec<String> =
+                    types.iter().map(|t| format!("'{}'", t.as_str())).collect();
                 sql.push_str(&format!(" AND n.type IN ({})", type_list.join(",")));
             }
             if let Some(priority) = filters.priority {
-                sql.push_str(&format!(" AND json_extract(n.properties, '$.priority') = {}", priority));
+                sql.push_str(&format!(
+                    " AND json_extract(n.properties, '$.priority') = {}",
+                    priority
+                ));
             }
             if let Some(completed) = filters.is_completed {
                 if completed {
@@ -568,17 +626,19 @@ impl NodeRepository {
         sql.push_str(" ORDER BY rank LIMIT 50");
 
         let mut stmt = conn.prepare(&sql)?;
-        let results = stmt.query_map(params![fts_query], |row| {
-            let snippet: String = row.get(row.as_ref().column_index("snippet").unwrap())?;
-            let rank: f64 = row.get(row.as_ref().column_index("rank").unwrap())?;
-            let node = map_node(row);
-            Ok(SearchResult {
-                node,
-                snippet,
-                breadcrumb: vec![],
-                rank,
-            })
-        })?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let results = stmt
+            .query_map(params![fts_query], |row| {
+                let snippet: String = row.get(row.as_ref().column_index("snippet").unwrap())?;
+                let rank: f64 = row.get(row.as_ref().column_index("rank").unwrap())?;
+                let node = map_node(row);
+                Ok(SearchResult {
+                    node,
+                    snippet,
+                    breadcrumb: vec![],
+                    rank,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         // Enrich with breadcrumbs (inline query to avoid deadlock)
         let mut enriched = Vec::new();
@@ -600,7 +660,8 @@ impl NodeRepository {
         let mut stmt = conn.prepare(
             "SELECT * FROM nodes WHERE title LIKE ?1 AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 20"
         )?;
-        let nodes = stmt.query_map(params![pattern], |row| Ok(map_node(row)))?
+        let nodes = stmt
+            .query_map(params![pattern], |row| Ok(map_node(row)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(nodes)
     }
@@ -614,7 +675,8 @@ impl NodeRepository {
              AND deleted_at IS NULL AND is_completed = 0
              ORDER BY json_extract(properties, '$.priority'), json_extract(properties, '$.due_date')"
         )?;
-        let nodes = stmt.query_map([], |row| Ok(map_node(row)))?
+        let nodes = stmt
+            .query_map([], |row| Ok(map_node(row)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(nodes)
     }
@@ -626,9 +688,10 @@ impl NodeRepository {
              AND json_extract(properties, '$.due_date') IS NOT NULL
              AND datetime(json_extract(properties, '$.due_date')) < datetime('now')
              AND deleted_at IS NULL AND is_completed = 0
-             ORDER BY json_extract(properties, '$.due_date') ASC"
+             ORDER BY json_extract(properties, '$.due_date') ASC",
         )?;
-        let nodes = stmt.query_map([], |row| Ok(map_node(row)))?
+        let nodes = stmt
+            .query_map([], |row| Ok(map_node(row)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(nodes)
     }
@@ -689,9 +752,13 @@ impl NodeRepository {
         // Duplicate children recursively (pass conn reference)
         duplicate_children_conn(&conn, &original.id, &new_id)?;
 
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", params![&new_id], |row| {
-            Ok(map_node(row))
-        }).map_err(|_| Error::NotFound("Failed to get duplicated node".into()))?;
+        let node = conn
+            .query_row(
+                "SELECT * FROM nodes WHERE id = ?1",
+                params![&new_id],
+                |row| Ok(map_node(row)),
+            )
+            .map_err(|_| Error::NotFound("Failed to get duplicated node".into()))?;
 
         Ok(node)
     }
@@ -700,35 +767,70 @@ impl NodeRepository {
 pub(crate) fn map_node(row: &rusqlite::Row) -> Node {
     Node {
         id: row.get(row.as_ref().column_index("id").unwrap()).unwrap(),
-        parent_id: row.get(row.as_ref().column_index("parent_id").unwrap()).unwrap(),
-        position: row.get(row.as_ref().column_index("position").unwrap()).unwrap(),
-        node_type: NodeType::from_str(
-            &row.get::<_, String>(row.as_ref().column_index("type").unwrap()).unwrap()
-        ).unwrap_or(NodeType::Task),
-        title: row.get(row.as_ref().column_index("title").unwrap()).unwrap(),
+        parent_id: row
+            .get(row.as_ref().column_index("parent_id").unwrap())
+            .unwrap(),
+        position: row
+            .get(row.as_ref().column_index("position").unwrap())
+            .unwrap(),
+        node_type: NodeType::parse(
+            &row.get::<_, String>(row.as_ref().column_index("type").unwrap())
+                .unwrap(),
+        )
+        .unwrap_or(NodeType::Task),
+        title: row
+            .get(row.as_ref().column_index("title").unwrap())
+            .unwrap(),
         body: row.get(row.as_ref().column_index("body").unwrap()).unwrap(),
         properties: serde_json::from_str(
-            &row.get::<_, String>(row.as_ref().column_index("properties").unwrap()).unwrap()
-        ).unwrap_or_default(),
-        is_collapsed: row.get::<_, i32>(row.as_ref().column_index("is_collapsed").unwrap()).unwrap() != 0,
-        is_completed: row.get::<_, i32>(row.as_ref().column_index("is_completed").unwrap()).unwrap() != 0,
-        completed_at: row.get::<_, Option<String>>(row.as_ref().column_index("completed_at").unwrap()).unwrap()
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|d| d.with_timezone(&chrono::Utc))),
-        deleted_at: row.get::<_, Option<String>>(row.as_ref().column_index("deleted_at").unwrap()).unwrap()
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|d| d.with_timezone(&chrono::Utc))),
-        version: row.get(row.as_ref().column_index("version").unwrap()).unwrap(),
-        clock: row.get(row.as_ref().column_index("clock").unwrap()).unwrap(),
-        created_at: row.get::<_, String>(row.as_ref().column_index("created_at").unwrap()).unwrap()
-            .parse::<chrono::DateTime<chrono::Utc>>().unwrap_or_default(),
-        updated_at: row.get::<_, String>(row.as_ref().column_index("updated_at").unwrap()).unwrap()
-            .parse::<chrono::DateTime<chrono::Utc>>().unwrap_or_default(),
+            &row.get::<_, String>(row.as_ref().column_index("properties").unwrap())
+                .unwrap(),
+        )
+        .unwrap_or_default(),
+        is_collapsed: row
+            .get::<_, i32>(row.as_ref().column_index("is_collapsed").unwrap())
+            .unwrap()
+            != 0,
+        is_completed: row
+            .get::<_, i32>(row.as_ref().column_index("is_completed").unwrap())
+            .unwrap()
+            != 0,
+        completed_at: row
+            .get::<_, Option<String>>(row.as_ref().column_index("completed_at").unwrap())
+            .unwrap()
+            .and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|d| d.with_timezone(&chrono::Utc))
+            }),
+        deleted_at: row
+            .get::<_, Option<String>>(row.as_ref().column_index("deleted_at").unwrap())
+            .unwrap()
+            .and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|d| d.with_timezone(&chrono::Utc))
+            }),
+        version: row
+            .get(row.as_ref().column_index("version").unwrap())
+            .unwrap(),
+        clock: row
+            .get(row.as_ref().column_index("clock").unwrap())
+            .unwrap(),
+        created_at: row
+            .get::<_, String>(row.as_ref().column_index("created_at").unwrap())
+            .unwrap()
+            .parse::<chrono::DateTime<chrono::Utc>>()
+            .unwrap_or_default(),
+        updated_at: row
+            .get::<_, String>(row.as_ref().column_index("updated_at").unwrap())
+            .unwrap()
+            .parse::<chrono::DateTime<chrono::Utc>>()
+            .unwrap_or_default(),
     }
 }
 
-fn get_ancestors_inline(
-    conn: &rusqlite::Connection,
-    id: &str,
-) -> Result<Vec<Node>> {
+fn get_ancestors_inline(conn: &rusqlite::Connection, id: &str) -> Result<Vec<Node>> {
     let mut stmt = conn.prepare(
         "WITH RECURSIVE ancestors AS (
             SELECT *, 0 AS level FROM nodes WHERE id = ?1

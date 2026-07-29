@@ -24,7 +24,11 @@
   let editingFilterId = $state<string | null>(null);
   let editingFilterName = $state('');
 
-  function openView(module: 'today' | 'inbox' | 'upcoming' | 'workspaces' | 'search', viewMode: 'today' | 'inbox' | 'upcoming' | 'tree' | 'search' | 'completed' | 'trash' | 'tag' | 'filter') {
+  function openView(
+    module: 'today' | 'inbox' | 'upcoming' | 'workspaces' | 'search',
+    viewMode:
+      'today' | 'inbox' | 'upcoming' | 'tree' | 'search' | 'completed' | 'trash' | 'tag' | 'filter',
+  ) {
     uiStore.setActiveModule(module);
     nodeStore.setViewMode(viewMode);
     if (viewMode !== 'tree') {
@@ -111,7 +115,12 @@
     <button
       class="nav-item"
       class:active={nodeStore.viewMode === 'completed'}
-      onclick={() => { uiStore.setActiveModule('workspaces'); nodeStore.setViewMode('completed'); nodeStore.select(null); nodeStore.setFocusRoot(null); }}
+      onclick={() => {
+        uiStore.setActiveModule('workspaces');
+        nodeStore.setViewMode('completed');
+        nodeStore.select(null);
+        nodeStore.setFocusRoot(null);
+      }}
     >
       <span class="icon">✓</span>
       <span>Completed</span>
@@ -120,7 +129,13 @@
     <button
       class="nav-item"
       class:active={nodeStore.viewMode === 'trash'}
-      onclick={() => { uiStore.setActiveModule('workspaces'); nodeStore.setViewMode('trash'); nodeStore.select(null); nodeStore.setFocusRoot(null); nodeStore.loadTrash(); }}
+      onclick={() => {
+        uiStore.setActiveModule('workspaces');
+        nodeStore.setViewMode('trash');
+        nodeStore.select(null);
+        nodeStore.setFocusRoot(null);
+        nodeStore.loadTrash();
+      }}
     >
       <span class="icon">⌫</span>
       <span>Trash</span>
@@ -134,7 +149,12 @@
     <button
       class="nav-item"
       class:active={nodeStore.viewMode === 'filter'}
-      onclick={() => { uiStore.setActiveModule('workspaces'); nodeStore.setViewMode('filter'); nodeStore.select(null); nodeStore.setFocusRoot(null); }}
+      onclick={() => {
+        uiStore.setActiveModule('workspaces');
+        nodeStore.setViewMode('filter');
+        nodeStore.select(null);
+        nodeStore.setFocusRoot(null);
+      }}
     >
       <span class="icon">▦</span>
       <span>Filters</span>
@@ -185,7 +205,14 @@
           <span class="tag-dot" style={tag.color ? `background: ${tag.color}` : ''}></span>
           <span>{tag.name}</span>
         </button>
-        <button class="row-action danger" title="Delete tag" onclick={(e) => { e.stopPropagation(); nodeStore.deleteTag(tag.id); }}>×</button>
+        <button
+          class="row-action danger"
+          title="Delete tag"
+          onclick={(e) => {
+            e.stopPropagation();
+            nodeStore.deleteTag(tag.id);
+          }}>×</button
+        >
       </div>
     {/each}
     {#if nodeStore.tags.length === 0}
@@ -205,12 +232,23 @@
         class:active={savedFilterStore.selectedId === filter.id && nodeStore.viewMode === 'filter'}
       >
         {#if editingFilterId === filter.id}
-          <form class="filter-rename-form" onsubmit={(e) => { e.preventDefault(); commitRenameFilter(); }}>
+          <form
+            class="filter-rename-form"
+            onsubmit={(e) => {
+              e.preventDefault();
+              commitRenameFilter();
+            }}
+          >
             <input
               class="filter-rename-input"
               bind:value={editingFilterName}
               onblur={commitRenameFilter}
-              onkeydown={(e) => { if (e.key === 'Escape') { editingFilterId = null; editingFilterName = ''; } }}
+              onkeydown={(e) => {
+                if (e.key === 'Escape') {
+                  editingFilterId = null;
+                  editingFilterName = '';
+                }
+              }}
               use:focusOnEdit
             />
           </form>
@@ -224,8 +262,22 @@
           >
             <span>{filter.name}</span>
           </button>
-          <button class="row-action" title="Rename filter" onclick={(e) => { e.stopPropagation(); startRenameFilter(filter.id, filter.name); }}>✎</button>
-          <button class="row-action danger" title="Delete filter" onclick={(e) => { e.stopPropagation(); savedFilterStore.delete(filter.id); }}>×</button>
+          <button
+            class="row-action"
+            title="Rename filter"
+            onclick={(e) => {
+              e.stopPropagation();
+              startRenameFilter(filter.id, filter.name);
+            }}>✎</button
+          >
+          <button
+            class="row-action danger"
+            title="Delete filter"
+            onclick={(e) => {
+              e.stopPropagation();
+              savedFilterStore.delete(filter.id);
+            }}>×</button
+          >
         {/if}
       </div>
     {/each}
@@ -254,7 +306,12 @@
 </div>
 
 <style>
-  .sidebar-inner { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  .sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
   .brand-row {
     padding: 12px 12px 10px 16px;
     border-bottom: 1px solid var(--border);
@@ -298,41 +355,86 @@
     background: var(--bg-active);
     font-weight: 700;
   }
-  .nav { padding: 8px; border-bottom: 1px solid var(--border); }
+  .nav {
+    padding: 8px;
+    border-bottom: 1px solid var(--border);
+  }
   .nav-item {
-    display: flex; align-items: center; gap: 8px;
-    width: 100%; padding: 8px 10px;
-    border: none; background: none; cursor: pointer;
-    border-radius: 6px; font-size: var(--text-sm); color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
     text-align: left;
   }
-  .nav-item:hover { background: var(--bg-hover); }
-  .nav-item.active { background: var(--bg-active); color: var(--accent); font-weight: 600; }
-  .icon { width: 18px; text-align: center; opacity: 0.7; }
-  .badge {
-    margin-left: auto; font-size: 10px; background: var(--bg-active);
-    padding: 1px 6px; border-radius: 8px; color: var(--text-secondary);
+  .nav-item:hover {
+    background: var(--bg-hover);
   }
-  .badge.danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .nav-item.active {
+    background: var(--bg-active);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .icon {
+    width: 18px;
+    text-align: center;
+    opacity: 0.7;
+  }
+  .badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--bg-active);
+    padding: 1px 6px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+  }
+  .badge.danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+  }
   kbd {
-    margin-left: auto; font-size: 10px; padding: 1px 4px;
-    background: var(--bg-active); border-radius: 3px; color: var(--text-tertiary);
+    margin-left: auto;
+    font-size: 10px;
+    padding: 1px 4px;
+    background: var(--bg-active);
+    border-radius: 3px;
+    color: var(--text-tertiary);
   }
   .section-label {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 12px 14px 6px;
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--text-tertiary); font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    font-weight: 600;
   }
   .section-actions {
     display: flex;
     gap: 3px;
   }
   .add {
-    border: none; background: var(--bg-active); width: 20px; height: 20px;
-    border-radius: 4px; cursor: pointer; color: var(--text-secondary); line-height: 1;
+    border: none;
+    background: var(--bg-active);
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    line-height: 1;
   }
-  .add:hover { background: var(--accent); color: white; }
+  .add:hover {
+    background: var(--accent);
+    color: white;
+  }
   .tags {
     max-height: 140px;
     overflow-y: auto;
@@ -460,11 +562,29 @@
     background: var(--accent);
     flex-shrink: 0;
   }
-  .tree { flex: 1; overflow-y: auto; padding: 0 6px 12px; }
-  .empty { padding: 16px; text-align: center; color: var(--text-tertiary); font-size: var(--text-sm); }
-  .empty.compact { padding: 8px; text-align: left; }
+  .tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 6px 12px;
+  }
+  .empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
+  .empty.compact {
+    padding: 8px;
+    text-align: left;
+  }
   .cta {
-    margin-top: 8px; border: none; background: var(--accent); color: white;
-    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: var(--text-sm);
+    margin-top: 8px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: var(--text-sm);
   }
 </style>

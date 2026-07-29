@@ -20,20 +20,25 @@
   let hoverStage = $state<string | null>(null);
   let quickCaptureTitle = $state('');
   let reviewMode = $state(false);
-  let pointerDrag = $state<{ taskId: string; pointerId: number; startX: number; startY: number } | null>(null);
+  let pointerDrag = $state<{
+    taskId: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   let pointerDragging = $state(false);
   let suppressClick = $state(false);
 
   let allTasks = $derived(
     [...nodeStore.nodes.values()]
       .filter((n) => n.nodeType === 'Task' && !n.deletedAt && !n.isCompleted)
-      .sort((a, b) => a.position - b.position)
+      .sort((a, b) => a.position - b.position),
   );
 
   function gtdKey(node: Node): string {
     const custom = (node.properties.custom as Record<string, unknown> | undefined) ?? {};
     const state = custom.gtdState;
-    if (typeof state === 'string' && GTD_STAGES.some(s => s.key === state)) return state;
+    if (typeof state === 'string' && GTD_STAGES.some((s) => s.key === state)) return state;
     return 'inbox'; // default: unprocessed goes to inbox
   }
 
@@ -81,7 +86,8 @@
       document.body.classList.add('calendar-is-dragging');
       e.preventDefault();
       const target = document.elementFromPoint(e.clientX, e.clientY);
-      const stage = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-gtd-stage]') : null;
+      const stage =
+        target instanceof HTMLElement ? target.closest<HTMLElement>('[data-gtd-stage]') : null;
       hoverStage = stage?.dataset.gtdStage ?? null;
     }
   }
@@ -103,7 +109,8 @@
     suppressClick = true;
     setTimeout(() => (suppressClick = false), 0);
     const target = document.elementFromPoint(e.clientX, e.clientY);
-    const stage = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-gtd-stage]') : null;
+    const stage =
+      target instanceof HTMLElement ? target.closest<HTMLElement>('[data-gtd-stage]') : null;
     const gtdState = stage?.dataset.gtdStage;
     hoverStage = null;
     if (!gtdState) return;
@@ -119,7 +126,7 @@
 
   async function moveTaskToStage(taskId: string, gtdState: string) {
     await nodeStore.setTaskCustom(taskId, { gtdState });
-    const stage = GTD_STAGES.find(s => s.key === gtdState);
+    const stage = GTD_STAGES.find((s) => s.key === gtdState);
     toast.info(`Task moved to ${stage?.title ?? gtdState}`);
   }
 
@@ -164,7 +171,7 @@
     return allTasks.filter((t) => {
       const custom = (t.properties.custom as Record<string, unknown> | undefined) ?? {};
       const state = custom.gtdState;
-      return typeof state !== 'string' || !GTD_STAGES.some(s => s.key === state);
+      return typeof state !== 'string' || !GTD_STAGES.some((s) => s.key === state);
     });
   }
 
@@ -197,7 +204,21 @@
             <strong>{stage.title}</strong>
             <span>{tasks.length} tasks</span>
             {#each tasks.slice(0, 5) as task (task.id)}
-              <div class="review-task" role="button" tabindex="0" onclick={() => { nodeStore.select(task.id); nodeStore.setViewMode('tree'); }} onkeydown={(e) => { if (e.key === 'Enter') { nodeStore.select(task.id); nodeStore.setViewMode('tree'); } }}>
+              <div
+                class="review-task"
+                role="button"
+                tabindex="0"
+                onclick={() => {
+                  nodeStore.select(task.id);
+                  nodeStore.setViewMode('tree');
+                }}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') {
+                    nodeStore.select(task.id);
+                    nodeStore.setViewMode('tree');
+                  }
+                }}
+              >
                 {task.title || 'Untitled'}
               </div>
             {/each}
@@ -209,7 +230,13 @@
   {/if}
 
   <div class="capture-bar">
-    <form class="capture-form" onsubmit={(e) => { e.preventDefault(); quickCapture(); }}>
+    <form
+      class="capture-form"
+      onsubmit={(e) => {
+        e.preventDefault();
+        quickCapture();
+      }}
+    >
       <input
         class="capture-input"
         placeholder="Quick capture — type an idea and press Enter"
@@ -224,7 +251,24 @@
       <strong>New (unprocessed)</strong>
       <span>{newTasks.length} tasks without GTD state</span>
       {#each newTasks as task (task.id)}
-        <div class="new-task-chip" role="button" tabindex="0" draggable="true" ondragstart={(e) => handleDragStart(e, task.id)} onpointerdown={(e) => beginPointerDrag(e, task.id)} onpointermove={updatePointerDrag} onpointerup={endPointerDrag} onpointercancel={cancelPointerDrag} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { nodeStore.select(task.id); nodeStore.setViewMode('tree'); e.preventDefault(); } }}>
+        <div
+          class="new-task-chip"
+          role="button"
+          tabindex="0"
+          draggable="true"
+          ondragstart={(e) => handleDragStart(e, task.id)}
+          onpointerdown={(e) => beginPointerDrag(e, task.id)}
+          onpointermove={updatePointerDrag}
+          onpointerup={endPointerDrag}
+          onpointercancel={cancelPointerDrag}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              nodeStore.select(task.id);
+              nodeStore.setViewMode('tree');
+              e.preventDefault();
+            }
+          }}
+        >
           {task.title || 'Untitled'}
         </div>
       {/each}
@@ -262,13 +306,28 @@
               onpointermove={updatePointerDrag}
               onpointerup={endPointerDrag}
               onpointercancel={cancelPointerDrag}
-              onclick={() => { if (!suppressClick) { nodeStore.select(task.id); nodeStore.setViewMode('tree'); } }}
-              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { nodeStore.select(task.id); nodeStore.setViewMode('tree'); e.preventDefault(); } }}
+              onclick={() => {
+                if (!suppressClick) {
+                  nodeStore.select(task.id);
+                  nodeStore.setViewMode('tree');
+                }
+              }}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  nodeStore.select(task.id);
+                  nodeStore.setViewMode('tree');
+                  e.preventDefault();
+                }
+              }}
             >
               <span class="task-title">{task.title || 'Untitled'}</span>
               <div class="task-meta">
-                {#if task.properties.priority}<span class="priority">{priorityBadge(task.properties.priority)}</span>{/if}
-                {#if task.properties.dueDate}<span class="due">{dueLabel(task.properties.dueDate)}</span>{/if}
+                {#if task.properties.priority}<span class="priority"
+                    >{priorityBadge(task.properties.priority)}</span
+                  >{/if}
+                {#if task.properties.dueDate}<span class="due"
+                    >{dueLabel(task.properties.dueDate)}</span
+                  >{/if}
               </div>
             </div>
           {/each}
@@ -298,9 +357,17 @@
     background: var(--bg-panel);
     flex-wrap: wrap;
   }
-  .gtd-toolbar h2 { margin: 0; }
-  .gtd-toolbar p { color: var(--text-tertiary); font-size: var(--text-sm); }
-  .toolbar-actions { display: flex; gap: 8px; }
+  .gtd-toolbar h2 {
+    margin: 0;
+  }
+  .gtd-toolbar p {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
+  .toolbar-actions {
+    display: flex;
+    gap: 8px;
+  }
   button {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -310,12 +377,16 @@
     padding: 0 10px;
     cursor: pointer;
   }
-  button.active, button.primary {
+  button.active,
+  button.primary {
     border-color: var(--accent);
     background: var(--accent);
     color: white;
   }
-  button:disabled { cursor: not-allowed; opacity: 0.45; }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
   .capture-bar {
     padding: 12px 18px;
     border-bottom: 1px solid var(--border);
@@ -339,8 +410,13 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg-panel);
   }
-  .review-panel h3 { margin: 0 0 4px; }
-  .review-panel p { color: var(--text-tertiary); font-size: var(--text-xs); }
+  .review-panel h3 {
+    margin: 0 0 4px;
+  }
+  .review-panel p {
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+  }
   .review-stages {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -353,15 +429,26 @@
     background: var(--bg-input);
     padding: 8px;
   }
-  .review-stage strong { font-size: var(--text-xs); display: block; }
-  .review-stage span { font-size: 10px; color: var(--text-tertiary); }
+  .review-stage strong {
+    font-size: var(--text-xs);
+    display: block;
+  }
+  .review-stage span {
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
   .review-task {
     font-size: var(--text-xs);
     padding: 3px 0;
     cursor: pointer;
   }
-  .review-task:hover { color: var(--accent); }
-  .more { font-size: 10px; color: var(--text-tertiary); }
+  .review-task:hover {
+    color: var(--accent);
+  }
+  .more {
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
   .new-tasks-bar {
     padding: 10px 18px;
     border-bottom: 1px solid var(--border);
@@ -371,8 +458,13 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-  .new-tasks-bar strong { font-size: var(--text-xs); }
-  .new-tasks-bar span { color: var(--text-tertiary); font-size: 11px; }
+  .new-tasks-bar strong {
+    font-size: var(--text-xs);
+  }
+  .new-tasks-bar span {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
   .new-task-chip {
     border: 1px dashed var(--border);
     border-radius: 12px;
@@ -381,7 +473,9 @@
     cursor: grab;
     background: var(--bg-panel);
   }
-  .new-task-chip:active { cursor: grabbing; }
+  .new-task-chip:active {
+    cursor: grabbing;
+  }
   .gtd-stages {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -395,11 +489,13 @@
     display: flex;
     flex-direction: column;
     min-height: 140px;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
   }
   .gtd-stage.hovered {
     border-color: var(--accent);
-    background: var(--accent-subtle, rgba(37,99,235,0.05));
+    background: var(--accent-subtle, rgba(37, 99, 235, 0.05));
   }
   .stage-header {
     display: flex;
@@ -409,9 +505,18 @@
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
   }
-  .stage-icon { font-size: 14px; }
-  .stage-header strong { font-size: var(--text-xs); white-space: nowrap; }
-  .stage-desc { font-size: 10px; color: var(--text-tertiary); display: none; }
+  .stage-icon {
+    font-size: 14px;
+  }
+  .stage-header strong {
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+  .stage-desc {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    display: none;
+  }
   .stage-header .count {
     margin-left: auto;
     background: var(--bg-active);
@@ -436,15 +541,22 @@
     display: grid;
     gap: 2px;
   }
-  .gtd-task-card:hover { border-color: var(--accent); }
-  .gtd-task-card:active { cursor: grabbing; }
+  .gtd-task-card:hover {
+    border-color: var(--accent);
+  }
+  .gtd-task-card:active {
+    cursor: grabbing;
+  }
   .task-title {
     font-size: var(--text-sm);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .task-meta { display: flex; gap: 4px; }
+  .task-meta {
+    display: flex;
+    gap: 4px;
+  }
   .priority {
     font-size: 10px;
     padding: 0 4px;
@@ -453,7 +565,10 @@
     color: white;
     font-weight: 700;
   }
-  .due { font-size: 10px; color: var(--text-tertiary); }
+  .due {
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
   .drop-hint {
     color: var(--text-tertiary);
     font-size: var(--text-xs);
@@ -464,6 +579,8 @@
     .gtd-stages {
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
-    .stage-desc { display: inline; }
+    .stage-desc {
+      display: inline;
+    }
   }
 </style>

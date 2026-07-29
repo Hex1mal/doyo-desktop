@@ -68,10 +68,13 @@
     {#if currentDue}
       <div class="current-due">
         Current: <strong>{formatDue(currentDue)}</strong>
-        <button class="clear-link" onclick={() => {
-          if (nodeStore.selectedId) nodeStore.setDueDate(nodeStore.selectedId, null);
-          uiStore.closeDueDatePrompt();
-        }}>Clear</button>
+        <button
+          class="clear-link"
+          onclick={() => {
+            if (nodeStore.selectedId) nodeStore.setDueDate(nodeStore.selectedId, null);
+            uiStore.closeDueDatePrompt();
+          }}>Clear</button
+        >
       </div>
     {/if}
 
@@ -93,7 +96,10 @@
       bind:value
       placeholder="e.g. tomorrow"
       onkeydown={(e) => {
-        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submit();
+        }
         if (e.key === 'Escape') uiStore.closeDueDatePrompt();
       }}
     />
@@ -106,9 +112,13 @@
 
 <style>
   .overlay {
-    position: fixed; inset: 0; z-index: 1100;
-    background: rgba(0,0,0,0.4);
-    display: flex; align-items: flex-start; justify-content: center;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
     padding-top: 18vh;
   }
   .dialog {
@@ -116,9 +126,12 @@
     background: var(--bg-modal);
     border-radius: 10px;
     padding: 16px;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   }
-  h3 { margin: 0 0 6px; font-size: var(--text-lg); }
+  h3 {
+    margin: 0 0 6px;
+    font-size: var(--text-lg);
+  }
   .current-due {
     font-size: var(--text-sm);
     color: var(--text-secondary);
@@ -128,13 +141,16 @@
     gap: 8px;
   }
   .clear-link {
-    border: none; background: none;
+    border: none;
+    background: none;
     color: var(--danger);
     font-size: var(--text-xs);
     cursor: pointer;
     text-decoration: underline;
   }
-  .clear-link:hover { opacity: 0.8; }
+  .clear-link:hover {
+    opacity: 0.8;
+  }
   .presets {
     display: flex;
     flex-wrap: wrap;
@@ -156,7 +172,11 @@
     color: white;
     border-color: var(--accent);
   }
-  .hint { font-size: var(--text-xs); color: var(--text-tertiary); margin-bottom: 12px; }
+  .hint {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    margin-bottom: 12px;
+  }
   input {
     width: 100%;
     padding: 10px 12px;
@@ -167,12 +187,32 @@
     font-size: var(--text-base);
     outline: none;
   }
-  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
-  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-  button {
-    border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: var(--text-sm);
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-subtle);
   }
-  .primary { background: var(--accent); color: white; }
-  .primary:hover { background: var(--accent-hover); }
-  .secondary { background: var(--bg-hover); color: var(--text-primary); }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  button {
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: var(--text-sm);
+  }
+  .primary {
+    background: var(--accent);
+    color: white;
+  }
+  .primary:hover {
+    background: var(--accent-hover);
+  }
+  .secondary {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
 </style>

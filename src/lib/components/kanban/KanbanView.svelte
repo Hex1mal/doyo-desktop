@@ -63,7 +63,9 @@
   <header class="kanban-toolbar">
     <div>
       <h2>Kanban</h2>
-      <p>Columns are projections of existing tasks. Dragging changes the selected grouping field.</p>
+      <p>
+        Columns are projections of existing tasks. Dragging changes the selected grouping field.
+      </p>
     </div>
     <label>
       Columns
@@ -86,7 +88,8 @@
       <input
         type="checkbox"
         checked={prefs.showCompleted}
-        onchange={(e) => uiStore.setKanbanPrefs({ showCompleted: (e.target as HTMLInputElement).checked })}
+        onchange={(e) =>
+          uiStore.setKanbanPrefs({ showCompleted: (e.target as HTMLInputElement).checked })}
       />
       Completed
     </label>
@@ -94,7 +97,11 @@
 
   {#if mode === 'status'}
     <div class="status-editor">
-      <input placeholder="New status column" bind:value={newStatus} onkeydown={(e) => e.key === 'Enter' && addStatus()} />
+      <input
+        placeholder="New status column"
+        bind:value={newStatus}
+        onkeydown={(e) => e.key === 'Enter' && addStatus()}
+      />
       <button onclick={addStatus}>Add column</button>
     </div>
   {/if}

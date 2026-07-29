@@ -8,7 +8,9 @@ pub struct TagService {
 }
 
 impl TagService {
-    pub fn new(repo: TagRepository) -> Self { Self { repo } }
+    pub fn new(repo: TagRepository) -> Self {
+        Self { repo }
+    }
 
     pub fn add_tag(&self, node_id: &str, tag_name: &str) -> Result<Tag> {
         let tag = self.repo.get_or_create(tag_name)?;

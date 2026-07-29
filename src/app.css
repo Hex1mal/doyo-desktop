@@ -23,49 +23,49 @@
   --inspector-width: 300px;
   --border-radius: 6px;
 
-  --bg-app: #FAFAFA;
-  --bg-sidebar: #F0F0F0;
-  --bg-panel: #FFFFFF;
+  --bg-app: #fafafa;
+  --bg-sidebar: #f0f0f0;
+  --bg-panel: #ffffff;
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.08);
-  --bg-input: #FFFFFF;
-  --bg-modal: #FFFFFF;
+  --bg-input: #ffffff;
+  --bg-modal: #ffffff;
   --bg-tooltip: #333333;
 
-  --text-primary: #1A1A1A;
+  --text-primary: #1a1a1a;
   --text-secondary: #666666;
   --text-tertiary: #999999;
-  --text-link: #2563EB;
+  --text-link: #2563eb;
 
-  --accent: #6366F1;
-  --accent-hover: #4F46E5;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
   --accent-subtle: rgba(99, 102, 241, 0.1);
-  --danger: #EF4444;
-  --warning: #F59E0B;
-  --success: #10B981;
-  --info: #3B82F6;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #10b981;
+  --info: #3b82f6;
 
   --border: rgba(0, 0, 0, 0.08);
 
-  --priority-p1: #EF4444;
-  --priority-p2: #F97316;
-  --priority-p3: #EAB308;
+  --priority-p1: #ef4444;
+  --priority-p2: #f97316;
+  --priority-p3: #eab308;
 }
 
-[data-theme="dark"] {
-  --bg-app: #1A1A1A;
+[data-theme='dark'] {
+  --bg-app: #1a1a1a;
   --bg-sidebar: #141414;
   --bg-panel: #242424;
   --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active: rgba(255, 255, 255, 0.10);
-  --bg-input: #2A2A2A;
-  --bg-modal: #2A2A2A;
-  --bg-tooltip: #E0E0E0;
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-input: #2a2a2a;
+  --bg-modal: #2a2a2a;
+  --bg-tooltip: #e0e0e0;
 
-  --text-primary: #E8E8E8;
+  --text-primary: #e8e8e8;
   --text-secondary: #999999;
   --text-tertiary: #666666;
-  --text-link: #60A5FA;
+  --text-link: #60a5fa;
 
   --border: rgba(255, 255, 255, 0.08);
 }
@@ -76,7 +76,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font-ui);
@@ -107,7 +108,8 @@ button {
   font-family: inherit;
 }
 
-input, textarea {
+input,
+textarea {
   font-family: inherit;
   font-size: inherit;
   color: var(--text-primary);

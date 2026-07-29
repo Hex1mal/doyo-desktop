@@ -55,8 +55,12 @@ describe('task projections', () => {
   });
 
   it('handles end of month and end of year boundaries', () => {
-    expect(inNextSevenTotalDays('2026-03-01T00:00:00+08:00', new Date('2026-02-28T12:00:00+08:00'))).toBe(true);
-    expect(inNextSevenTotalDays('2027-01-01T00:00:00+08:00', new Date('2026-12-31T12:00:00+08:00'))).toBe(true);
+    expect(
+      inNextSevenTotalDays('2026-03-01T00:00:00+08:00', new Date('2026-02-28T12:00:00+08:00')),
+    ).toBe(true);
+    expect(
+      inNextSevenTotalDays('2027-01-01T00:00:00+08:00', new Date('2026-12-31T12:00:00+08:00')),
+    ).toBe(true);
   });
 
   it('filters by normalized tags, priority, workspace, and text', () => {

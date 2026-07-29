@@ -1,21 +1,26 @@
-use std::sync::Arc;
+use doyo_core::attachment::AttachmentService;
+use doyo_core::backup::BackupService;
+use doyo_core::countdown::{
+    CountdownMode, CountdownService, CreateCountdownInput, UpdateCountdownInput,
+};
 use doyo_core::db::run_migrations;
 use doyo_core::db::Database;
-use doyo_core::backup::BackupService;
-use doyo_core::node::model::*;
-use doyo_core::node::service::NodeService;
+use doyo_core::export::ExportService;
 use doyo_core::focus::{
     FocusMethod, FocusService, FocusState, PomodoroPhase, StartFocusInput, StopFocusInput,
 };
-use doyo_core::countdown::{CountdownMode, CountdownService, CreateCountdownInput, UpdateCountdownInput};
 use doyo_core::habit::{
     CreateHabitInput, HabitFrequency, HabitLogStatus, HabitService, UpdateHabitInput,
     UpsertHabitLogInput,
 };
+use doyo_core::import::ImportService;
+use doyo_core::node::model::*;
+use doyo_core::node::service::NodeService;
 use doyo_core::saved_filter::{CreateSavedFilterInput, SavedFilterService, UpdateSavedFilterInput};
 use doyo_core::settings::SettingsRepository;
 use doyo_core::tag::{TagRepository, TagService};
 use doyo_core::time_block::{CreateTimeBlockInput, TimeBlockService, UpdateTimeBlockInput};
+use std::sync::Arc;
 
 fn setup_db() -> Arc<Database> {
     let db = Arc::new(Database::open_in_memory().expect("Failed to create in-memory DB"));
@@ -169,11 +174,26 @@ fn test_required_polyglot_hierarchy_and_persistence_queries() {
         ]
     );
 
-    assert_eq!(service.get_children(Some(&polyglot.id)).unwrap()[0].id, english.id);
-    assert_eq!(service.get_children(Some(&english.id)).unwrap()[0].id, grammar.id);
-    assert_eq!(service.get_children(Some(&grammar.id)).unwrap()[0].id, tenses.id);
-    assert_eq!(service.get_children(Some(&tenses.id)).unwrap()[0].id, study.id);
-    assert_eq!(service.get_children(Some(&study.id)).unwrap()[0].id, read.id);
+    assert_eq!(
+        service.get_children(Some(&polyglot.id)).unwrap()[0].id,
+        english.id
+    );
+    assert_eq!(
+        service.get_children(Some(&english.id)).unwrap()[0].id,
+        grammar.id
+    );
+    assert_eq!(
+        service.get_children(Some(&grammar.id)).unwrap()[0].id,
+        tenses.id
+    );
+    assert_eq!(
+        service.get_children(Some(&tenses.id)).unwrap()[0].id,
+        study.id
+    );
+    assert_eq!(
+        service.get_children(Some(&study.id)).unwrap()[0].id,
+        read.id
+    );
 }
 
 #[test]
@@ -185,7 +205,10 @@ fn test_cycle_prevention() {
 
     let result = service.move_node(&parent.id, Some(&child.id), 0.0);
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), doyo_core::Error::CycleDetected));
+    assert!(matches!(
+        result.unwrap_err(),
+        doyo_core::Error::CycleDetected
+    ));
 }
 
 #[test]
@@ -257,8 +280,10 @@ fn test_normalized_tags_and_legacy_sync_are_non_destructive() {
     let mut service = NodeService::new(db.clone());
     let tag_service = TagService::new(TagRepository::new(db.clone()));
     let ws = workspace(&mut service, "Work");
-    let mut properties = NodeProperties::default();
-    properties.custom = Some(serde_json::json!({ "tags": [" Study ", "English"] }));
+    let properties = NodeProperties {
+        custom: Some(serde_json::json!({ "tags": [" Study ", "English"] })),
+        ..Default::default()
+    };
     let tagged = task_with_properties(&mut service, &ws.id, "Tagged task", properties);
 
     let synced = tag_service.sync_legacy_custom_tags().unwrap();
@@ -270,7 +295,9 @@ fn test_normalized_tags_and_legacy_sync_are_non_destructive() {
     let duplicate = tag_service.create_tag(" study ", None);
     assert!(duplicate.is_err());
 
-    let important = tag_service.create_tag("Important", Some("#EF4444")).unwrap();
+    let important = tag_service
+        .create_tag("Important", Some("#EF4444"))
+        .unwrap();
     tag_service.assign_tag(&tagged.id, &important.id).unwrap();
     let renamed = tag_service
         .rename_tag(&important.id, "Important Work", Some("#F59E0B"))
@@ -318,7 +345,10 @@ fn test_time_block_crud_validation_and_linked_task_delete_behavior() {
     assert_eq!(block.task_id, Some(linked.id.clone()));
 
     let listed = blocks
-        .list_between(start - chrono::Duration::hours(1), end + chrono::Duration::hours(1))
+        .list_between(
+            start - chrono::Duration::hours(1),
+            end + chrono::Duration::hours(1),
+        )
         .unwrap();
     assert_eq!(listed.len(), 1);
 
@@ -603,7 +633,10 @@ fn test_habits_logs_archive_delete_and_summary() {
 
     habits.delete(&habit.id).unwrap();
     assert!(habits.list(true).unwrap().is_empty());
-    assert!(habits.list_logs(start, start + chrono::Duration::days(2)).unwrap().is_empty());
+    assert!(habits
+        .list_logs(start, start + chrono::Duration::days(2))
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -645,7 +678,9 @@ fn test_countdowns_create_update_reorder_archive_delete() {
         .unwrap();
     assert_eq!(updated.title, "Launch day");
 
-    let reordered = countdowns.reorder(&[second.id.clone(), first.id.clone()]).unwrap();
+    let reordered = countdowns
+        .reorder(&[second.id.clone(), first.id.clone()])
+        .unwrap();
     assert_eq!(reordered[0].id, second.id);
 
     countdowns.archive(&second.id, true).unwrap();
@@ -658,11 +693,18 @@ fn test_countdowns_create_update_reorder_archive_delete() {
 fn test_settings_repository_lists_prefixed_values() {
     let db = setup_db();
     let settings = SettingsRepository::new(db.clone());
-    settings.set("ui.theme", &serde_json::json!("dark")).unwrap();
     settings
-        .set("ui.preferences", &serde_json::json!({ "sidebarWidth": 320 }))
+        .set("ui.theme", &serde_json::json!("dark"))
         .unwrap();
-    settings.set("other.value", &serde_json::json!(true)).unwrap();
+    settings
+        .set(
+            "ui.preferences",
+            &serde_json::json!({ "sidebarWidth": 320 }),
+        )
+        .unwrap();
+    settings
+        .set("other.value", &serde_json::json!(true))
+        .unwrap();
 
     let ui_values = settings.list(Some("ui.")).unwrap();
     assert_eq!(ui_values.len(), 2);
@@ -673,7 +715,10 @@ fn test_settings_repository_lists_prefixed_values() {
     );
 
     settings.delete("ui.theme").unwrap();
-    assert!(settings.get::<serde_json::Value>("ui.theme").unwrap().is_none());
+    assert!(settings
+        .get::<serde_json::Value>("ui.theme")
+        .unwrap()
+        .is_none());
 }
 
 #[test]
@@ -703,6 +748,201 @@ fn test_backup_service_create_prune_and_restore() {
     assert!(backups.list_backups().unwrap().len() <= 2);
 
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn test_backup_restore_rejects_path_traversal() {
+    let root = std::env::temp_dir().join(format!("doyo-backup-traversal-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    std::fs::write(&db_path, b"original").unwrap();
+    std::fs::write(backup_dir.join("safe.db"), b"backup").unwrap();
+
+    let backups = BackupService::new(db_path.clone(), backup_dir, 10);
+    assert!(backups.restore_backup("../safe.db").is_err());
+    assert!(backups.restore_backup("/tmp/safe.db").is_err());
+    assert!(backups.restore_backup("nested/safe.db").is_err());
+    backups.restore_backup("safe.db").unwrap();
+    assert_eq!(std::fs::read(&db_path).unwrap(), b"backup");
+
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn test_attachment_service_rejects_path_traversal() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let ws = workspace(&mut service, "Files");
+    let attachment_root =
+        std::env::temp_dir().join(format!("doyo-attachment-test-{}", uuid::Uuid::now_v7()));
+    let attachments = AttachmentService::new(db, attachment_root.clone());
+
+    assert!(attachments
+        .add_attachment(&ws.id, "../escape.txt", "text/plain", b"no")
+        .is_err());
+    assert!(attachments
+        .add_attachment("../node", "safe.txt", "text/plain", b"no")
+        .is_err());
+
+    let added = attachments
+        .add_attachment(&ws.id, "safe.txt", "text/plain", b"ok")
+        .unwrap();
+    assert!(std::path::Path::new(&added.file_path).exists());
+    attachments.delete_attachment(&added.id).unwrap();
+    assert!(!std::path::Path::new(&added.file_path).exists());
+
+    std::fs::remove_dir_all(attachment_root).unwrap();
+}
+
+#[test]
+fn test_json_export_import_nested_hierarchy_round_trip() {
+    let source_db = setup_db();
+    let mut source = NodeService::new(source_db.clone());
+    let ws = workspace(&mut source, "Polyglot");
+    let english = group(&mut source, &ws.id, "English");
+    let grammar = group(&mut source, &english.id, "Grammar");
+    let tenses = group(&mut source, &grammar.id, "Tenses");
+    let task_node = task(&mut source, &tenses.id, "Study present perfect");
+    task(&mut source, &task_node.id, "Write examples");
+    source.set_completion(&task_node.id, true, false).unwrap();
+
+    let tags = TagService::new(TagRepository::new(source_db.clone()));
+    let study = tags.create_tag("Study", Some("#22c55e")).unwrap();
+    tags.assign_tag(&task_node.id, &study.id).unwrap();
+
+    let time_blocks = TimeBlockService::new(source_db.clone());
+    time_blocks
+        .create(CreateTimeBlockInput {
+            task_id: Some(task_node.id.clone()),
+            title: "Practice".into(),
+            start_time: chrono::DateTime::parse_from_rfc3339("2026-07-29T08:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            end_time: chrono::DateTime::parse_from_rfc3339("2026-07-29T09:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            all_day: false,
+            notes: "Imported with task".into(),
+        })
+        .unwrap();
+
+    let exported = ExportService::new(source_db).export_json(None).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&exported).unwrap();
+    assert_eq!(document["format"], "io.github.hex1mal.doyo.transfer");
+    assert_eq!(document["version"], 1);
+
+    let target_db = setup_db();
+    let imported = ImportService::new(target_db.clone())
+        .import_json(&exported, None)
+        .unwrap();
+    assert_eq!(imported.len(), 6);
+
+    let target = NodeService::new(target_db.clone());
+    let roots = target.get_children(None).unwrap();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].title, "Polyglot");
+    let imported_tree = target.get_full_tree(None).unwrap();
+    let titles = imported_tree
+        .iter()
+        .map(|node| node.title.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        titles,
+        vec![
+            "Polyglot",
+            "English",
+            "Grammar",
+            "Tenses",
+            "Study present perfect",
+            "Write examples"
+        ]
+    );
+    assert!(imported_tree
+        .iter()
+        .any(|node| node.title == "Study present perfect" && node.is_completed));
+
+    let target_tags = TagService::new(TagRepository::new(target_db.clone()));
+    let tag_names = target_tags
+        .get_tag_names_for_node(
+            &imported_tree
+                .iter()
+                .find(|node| node.title == "Study present perfect")
+                .unwrap()
+                .id,
+        )
+        .unwrap();
+    assert_eq!(tag_names, vec!["Study"]);
+
+    let target_blocks = TimeBlockService::new(target_db)
+        .list_between(
+            chrono::DateTime::parse_from_rfc3339("2026-07-29T00:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            chrono::DateTime::parse_from_rfc3339("2026-07-30T00:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        )
+        .unwrap();
+    assert_eq!(target_blocks.len(), 1);
+    assert_eq!(target_blocks[0].title, "Practice");
+
+    assert!(ImportService::new(setup_db())
+        .import_json("{\"format\":\"bad\"}", None)
+        .is_err());
+}
+
+#[test]
+fn test_markdown_export_preserves_duplicate_and_unsafe_titles() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let ws = workspace(&mut service, "Export");
+    task(&mut service, &ws.id, "Read/Notes");
+    task(&mut service, &ws.id, "Read/Notes");
+
+    let output_dir =
+        std::env::temp_dir().join(format!("doyo-markdown-export-{}", uuid::Uuid::now_v7()));
+    ExportService::new(db)
+        .export_markdown(None, &output_dir)
+        .unwrap();
+    let files = std::fs::read_dir(&output_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    let markdown_files = files
+        .iter()
+        .filter(|name| name.ends_with(".md"))
+        .collect::<Vec<_>>();
+    assert!(!markdown_files.is_empty());
+    assert!(files
+        .iter()
+        .all(|name| !name.contains('/') && !name.contains('\\')));
+
+    let mut all_markdown = Vec::new();
+    collect_markdown_files(&output_dir, &mut all_markdown);
+    let duplicate_exports = all_markdown
+        .iter()
+        .filter(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().contains("Read_Notes"))
+                .unwrap_or(false)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(duplicate_exports.len(), 2);
+    assert_ne!(duplicate_exports[0], duplicate_exports[1]);
+
+    std::fs::remove_dir_all(output_dir).unwrap();
+}
+
+fn collect_markdown_files(dir: &std::path::Path, output: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            collect_markdown_files(&path, output);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+            output.push(path);
+        }
+    }
 }
 
 #[test]
@@ -752,7 +992,9 @@ fn test_move_and_tree_queries() {
     let group2 = group(&mut service, &ws.id, "Group 2");
     let movable = task(&mut service, &group1.id, "Movable");
 
-    service.move_node(&movable.id, Some(&group2.id), 500.0).unwrap();
+    service
+        .move_node(&movable.id, Some(&group2.id), 500.0)
+        .unwrap();
 
     let children = service.get_children(Some(&group2.id)).unwrap();
     assert_eq!(children.len(), 1);
@@ -775,23 +1017,57 @@ fn test_valid_contextual_moves_preserve_descendants() {
     let holder = group(&mut service, &ws1.id, "Language Notes");
     let other_task = task(&mut service, &ws2.id, "Parent task");
 
-    service.move_node(&english.id, Some(&ws2.id), 100.0).unwrap();
-    assert_eq!(service.get(&english.id).unwrap().parent_id, Some(ws2.id.clone()));
-    assert_eq!(service.get(&grammar.id).unwrap().parent_id, Some(english.id.clone()));
+    service
+        .move_node(&english.id, Some(&ws2.id), 100.0)
+        .unwrap();
+    assert_eq!(
+        service.get(&english.id).unwrap().parent_id,
+        Some(ws2.id.clone())
+    );
+    assert_eq!(
+        service.get(&grammar.id).unwrap().parent_id,
+        Some(english.id.clone())
+    );
 
-    service.move_node(&english.id, Some(&ws1.id), 200.0).unwrap();
-    assert_eq!(service.get(&english.id).unwrap().parent_id, Some(ws1.id.clone()));
+    service
+        .move_node(&english.id, Some(&ws1.id), 200.0)
+        .unwrap();
+    assert_eq!(
+        service.get(&english.id).unwrap().parent_id,
+        Some(ws1.id.clone())
+    );
 
-    service.move_node(&grammar.id, Some(&holder.id), 300.0).unwrap();
-    assert_eq!(service.get(&grammar.id).unwrap().parent_id, Some(holder.id.clone()));
-    assert_eq!(service.get(&tenses.id).unwrap().parent_id, Some(grammar.id.clone()));
+    service
+        .move_node(&grammar.id, Some(&holder.id), 300.0)
+        .unwrap();
+    assert_eq!(
+        service.get(&grammar.id).unwrap().parent_id,
+        Some(holder.id.clone())
+    );
+    assert_eq!(
+        service.get(&tenses.id).unwrap().parent_id,
+        Some(grammar.id.clone())
+    );
 
-    service.move_node(&study.id, Some(&other_task.id), 400.0).unwrap();
-    assert_eq!(service.get(&study.id).unwrap().parent_id, Some(other_task.id.clone()));
-    assert_eq!(service.get(&read.id).unwrap().parent_id, Some(study.id.clone()));
+    service
+        .move_node(&study.id, Some(&other_task.id), 400.0)
+        .unwrap();
+    assert_eq!(
+        service.get(&study.id).unwrap().parent_id,
+        Some(other_task.id.clone())
+    );
+    assert_eq!(
+        service.get(&read.id).unwrap().parent_id,
+        Some(study.id.clone())
+    );
 
-    service.move_node(&study.id, Some(&tenses.id), 500.0).unwrap();
-    assert_eq!(service.get(&study.id).unwrap().parent_id, Some(tenses.id.clone()));
+    service
+        .move_node(&study.id, Some(&tenses.id), 500.0)
+        .unwrap();
+    assert_eq!(
+        service.get(&study.id).unwrap().parent_id,
+        Some(tenses.id.clone())
+    );
 }
 
 #[test]
@@ -805,9 +1081,15 @@ fn test_invalid_moves_and_cycle_prevention_are_authoritative() {
     let subtask_node = task(&mut service, &task_node.id, "Subtask");
 
     assert!(service.move_node(&other_ws.id, Some(&ws.id), 0.0).is_err());
-    assert!(service.move_node(&group_node.id, Some(&task_node.id), 0.0).is_err());
-    assert!(service.move_node(&group_node.id, Some(&child_group.id), 0.0).is_err());
-    assert!(service.move_node(&task_node.id, Some(&subtask_node.id), 0.0).is_err());
+    assert!(service
+        .move_node(&group_node.id, Some(&task_node.id), 0.0)
+        .is_err());
+    assert!(service
+        .move_node(&group_node.id, Some(&child_group.id), 0.0)
+        .is_err());
+    assert!(service
+        .move_node(&task_node.id, Some(&subtask_node.id), 0.0)
+        .is_err());
 }
 
 #[test]
@@ -824,12 +1106,18 @@ fn test_recursive_completion_individual_and_cascade() {
         ids.push(child.id);
     }
 
-    assert_eq!(service.incomplete_task_descendant_count(&root.id).unwrap(), 6);
+    assert_eq!(
+        service.incomplete_task_descendant_count(&root.id).unwrap(),
+        6
+    );
 
     let completed_root = service.set_completion(&root.id, true, false).unwrap();
     assert!(completed_root.is_completed);
     assert!(completed_root.completed_at.is_some());
-    assert_eq!(service.incomplete_task_descendant_count(&root.id).unwrap(), 6);
+    assert_eq!(
+        service.incomplete_task_descendant_count(&root.id).unwrap(),
+        6
+    );
     for id in ids.iter().skip(1) {
         let child = service.get(id).unwrap();
         assert!(!child.is_completed);
@@ -844,7 +1132,11 @@ fn test_recursive_completion_individual_and_cascade() {
     for id in &ids {
         let node = service.get(id).unwrap();
         assert!(node.is_completed, "{} should be completed", node.title);
-        assert!(node.completed_at.is_some(), "{} should have completed_at", node.title);
+        assert!(
+            node.completed_at.is_some(),
+            "{} should have completed_at",
+            node.title
+        );
     }
 
     let reopened_again = service.set_completion(&root.id, false, false).unwrap();
@@ -876,7 +1168,9 @@ fn test_search_quick_find_and_count() {
     task(&mut service, &ws.id, "Fix authentication bug");
     task(&mut service, &ws.id, "Write documentation");
 
-    let results = service.search("authentication", SearchFilters::default()).unwrap();
+    let results = service
+        .search("authentication", SearchFilters::default())
+        .unwrap();
     assert!(!results.is_empty());
 
     let quick = service.quick_find("auth").unwrap();

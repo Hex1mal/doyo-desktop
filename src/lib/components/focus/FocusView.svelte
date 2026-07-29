@@ -5,7 +5,11 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import { timeBlockCreate } from '$lib/api/client';
   import type { Node, PomodoroPhase } from '$lib/types/node';
-  import { calculateParetoScore, flowtimeBreakSuggestion, localDateKey } from '$lib/utils/productivity';
+  import {
+    calculateParetoScore,
+    flowtimeBreakSuggestion,
+    localDateKey,
+  } from '$lib/utils/productivity';
   import MatrixView from './MatrixView.svelte';
   import GTDView from './GTDView.svelte';
 
@@ -14,7 +18,9 @@
   let selectedTaskId = $state('');
   let note = $state('');
   let cycle = $state(1);
-  let methodTab = $state<'focus' | 'timebox' | 'matrix' | 'frog' | 'flowtime' | 'gtd' | 'pareto'>('focus');
+  let methodTab = $state<'focus' | 'timebox' | 'matrix' | 'frog' | 'flowtime' | 'gtd' | 'pareto'>(
+    'focus',
+  );
   let timeboxStart = $state(new Date().toISOString().slice(0, 16));
   let timeboxMinutes = $state(60);
   let paretoImpact = $state(80);
@@ -67,7 +73,10 @@
       .sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  function updateNumber(key: 'focusMinutes' | 'shortBreakMinutes' | 'longBreakMinutes', value: string) {
+  function updateNumber(
+    key: 'focusMinutes' | 'shortBreakMinutes' | 'longBreakMinutes',
+    value: string,
+  ) {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) {
       uiStore.setFocusPrefs({ [key]: Math.max(0.02, parsed) });
@@ -86,13 +95,19 @@
   }
 
   function breakPhase(): PomodoroPhase {
-    return cycle % Math.max(1, uiStore.focusPrefs.longBreakInterval) === 0 ? 'long_break' : 'short_break';
+    return cycle % Math.max(1, uiStore.focusPrefs.longBreakInterval) === 0
+      ? 'long_break'
+      : 'short_break';
   }
 
   function startPomodoro(phase: PomodoroPhase) {
     const prefs = uiStore.focusPrefs;
     const minutes =
-      phase === 'focus' ? prefs.focusMinutes : phase === 'long_break' ? prefs.longBreakMinutes : prefs.shortBreakMinutes;
+      phase === 'focus'
+        ? prefs.focusMinutes
+        : phase === 'long_break'
+          ? prefs.longBreakMinutes
+          : prefs.shortBreakMinutes;
     focusStore.startPomodoro({
       taskId: selectedTaskId || null,
       plannedSeconds: minutesToSeconds(minutes),
@@ -111,7 +126,10 @@
   }
 
   function customOf(task: Node | null | undefined) {
-    return ((task?.properties.custom as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+    return ((task?.properties.custom as Record<string, unknown> | undefined) ?? {}) as Record<
+      string,
+      unknown
+    >;
   }
 
   async function saveTaskMethod(patch: Record<string, unknown>) {
@@ -188,7 +206,9 @@
     const tasks = taskOptions();
     const secondary = tasks.filter((task) => {
       const custom = customOf(task);
-      return custom.frogDate === today && custom.frogRole === 'secondary' && task.id !== selectedTaskId;
+      return (
+        custom.frogDate === today && custom.frogRole === 'secondary' && task.id !== selectedTaskId
+      );
     });
     if (role === 'secondary' && secondary.length >= 2) {
       toast.error('Only two secondary frogs are allowed per day');
@@ -197,7 +217,11 @@
     if (role === 'primary') {
       for (const task of tasks) {
         const custom = customOf(task);
-        if (task.id !== selectedTaskId && custom.frogDate === today && (custom.frogRole === 'primary' || custom.frog === true)) {
+        if (
+          task.id !== selectedTaskId &&
+          custom.frogDate === today &&
+          (custom.frogRole === 'primary' || custom.frog === true)
+        ) {
           nodeStore.setTaskCustom(task.id, { frog: false, frogRole: null });
         }
       }
@@ -232,7 +256,11 @@
       if (!candidate.completedAt || candidate.id === task.id) return false;
       const custom = customOf(candidate);
       const isFrog = custom.frogDate === date;
-      return !isFrog && localDateKey(new Date(candidate.completedAt)) === date && candidate.completedAt < task.completedAt!;
+      return (
+        !isFrog &&
+        localDateKey(new Date(candidate.completedAt)) === date &&
+        candidate.completedAt < task.completedAt!
+      );
     });
     return earlierNormal ? 'Completed after another normal task' : 'Completed before normal tasks';
   }
@@ -248,7 +276,10 @@
         return { task, impact, effort, override, score: calculateParetoScore(impact, effort) };
       })
       .filter((item) => item.override || item.impact > 0)
-      .sort((a, b) => Number(b.override) - Number(a.override) || b.score - a.score || b.impact - a.impact)
+      .sort(
+        (a, b) =>
+          Number(b.override) - Number(a.override) || b.score - a.score || b.impact - a.impact,
+      )
       .slice(0, Math.max(1, Math.ceil(tasks.length * 0.2)));
   }
 
@@ -265,13 +296,23 @@
       <p>Methods operate on the existing task hierarchy, time blocks, and focus sessions.</p>
     </div>
     <div class="tabs" aria-label="Productivity method">
-      <button class:active={methodTab === 'focus'} onclick={() => (methodTab = 'focus')}>Focus</button>
-      <button class:active={methodTab === 'timebox'} onclick={() => (methodTab = 'timebox')}>Timebox</button>
-      <button class:active={methodTab === 'matrix'} onclick={() => (methodTab = 'matrix')}>Matrix</button>
+      <button class:active={methodTab === 'focus'} onclick={() => (methodTab = 'focus')}
+        >Focus</button
+      >
+      <button class:active={methodTab === 'timebox'} onclick={() => (methodTab = 'timebox')}
+        >Timebox</button
+      >
+      <button class:active={methodTab === 'matrix'} onclick={() => (methodTab = 'matrix')}
+        >Matrix</button
+      >
       <button class:active={methodTab === 'frog'} onclick={() => (methodTab = 'frog')}>Frog</button>
-      <button class:active={methodTab === 'flowtime'} onclick={() => (methodTab = 'flowtime')}>Flowtime</button>
+      <button class:active={methodTab === 'flowtime'} onclick={() => (methodTab = 'flowtime')}
+        >Flowtime</button
+      >
       <button class:active={methodTab === 'gtd'} onclick={() => (methodTab = 'gtd')}>GTD</button>
-      <button class:active={methodTab === 'pareto'} onclick={() => (methodTab = 'pareto')}>Pareto</button>
+      <button class:active={methodTab === 'pareto'} onclick={() => (methodTab = 'pareto')}
+        >Pareto</button
+      >
     </div>
   </div>
 
@@ -279,8 +320,12 @@
     <section class="timer-panel">
       {#if methodTab === 'focus'}
         <div class="tabs inline-tabs" aria-label="Timer type">
-          <button class:active={mode === 'pomodoro'} onclick={() => (mode = 'pomodoro')}>Pomodoro</button>
-          <button class:active={mode === 'stopwatch'} onclick={() => (mode = 'stopwatch')}>Stopwatch</button>
+          <button class:active={mode === 'pomodoro'} onclick={() => (mode = 'pomodoro')}
+            >Pomodoro</button
+          >
+          <button class:active={mode === 'stopwatch'} onclick={() => (mode = 'stopwatch')}
+            >Stopwatch</button
+          >
         </div>
       {/if}
 
@@ -292,10 +337,45 @@
 
       {#if methodTab === 'focus'}
         <div class="settings-grid">
-          <label>Focus <input type="number" min="0.02" step="0.1" value={uiStore.focusPrefs.focusMinutes} onchange={(event) => updateNumber('focusMinutes', (event.target as HTMLInputElement).value)} /></label>
-          <label>Short break <input type="number" min="0.02" step="0.1" value={uiStore.focusPrefs.shortBreakMinutes} onchange={(event) => updateNumber('shortBreakMinutes', (event.target as HTMLInputElement).value)} /></label>
-          <label>Long break <input type="number" min="0.02" step="0.1" value={uiStore.focusPrefs.longBreakMinutes} onchange={(event) => updateNumber('longBreakMinutes', (event.target as HTMLInputElement).value)} /></label>
-          <label>Long interval <input type="number" min="1" step="1" value={uiStore.focusPrefs.longBreakInterval} onchange={(event) => updateInterval((event.target as HTMLInputElement).value)} /></label>
+          <label
+            >Focus <input
+              type="number"
+              min="0.02"
+              step="0.1"
+              value={uiStore.focusPrefs.focusMinutes}
+              onchange={(event) =>
+                updateNumber('focusMinutes', (event.target as HTMLInputElement).value)}
+            /></label
+          >
+          <label
+            >Short break <input
+              type="number"
+              min="0.02"
+              step="0.1"
+              value={uiStore.focusPrefs.shortBreakMinutes}
+              onchange={(event) =>
+                updateNumber('shortBreakMinutes', (event.target as HTMLInputElement).value)}
+            /></label
+          >
+          <label
+            >Long break <input
+              type="number"
+              min="0.02"
+              step="0.1"
+              value={uiStore.focusPrefs.longBreakMinutes}
+              onchange={(event) =>
+                updateNumber('longBreakMinutes', (event.target as HTMLInputElement).value)}
+            /></label
+          >
+          <label
+            >Long interval <input
+              type="number"
+              min="1"
+              step="1"
+              value={uiStore.focusPrefs.longBreakInterval}
+              onchange={(event) => updateInterval((event.target as HTMLInputElement).value)}
+            /></label
+          >
           <label>Cycle <input type="number" min="1" step="1" bind:value={cycle} /></label>
         </div>
       {/if}
@@ -305,7 +385,9 @@
         <select bind:value={selectedTaskId} disabled={Boolean(focusStore.active)}>
           <option value="">No linked task</option>
           {#each taskOptions() as task (task.id)}
-            <option value={task.id}>{task.title || 'Untitled'} - {nodeStore.getKindLabel(task)}</option>
+            <option value={task.id}
+              >{task.title || 'Untitled'} - {nodeStore.getKindLabel(task)}</option
+            >
           {/each}
         </select>
       </label>
@@ -321,18 +403,43 @@
 
       {#if methodTab === 'focus'}
         <div class="actions">
-          <button class="primary" disabled={Boolean(focusStore.active) || mode !== 'pomodoro'} onclick={() => startPomodoro('focus')}>Start Focus</button>
-          <button disabled={Boolean(focusStore.active) || mode !== 'pomodoro'} onclick={() => startPomodoro(breakPhase())}>Start Break</button>
-          <button class="primary" disabled={Boolean(focusStore.active) || mode !== 'stopwatch'} onclick={() => focusStore.startStopwatch(selectedTaskId || null, note)}>Start Stopwatch</button>
-          <button disabled={!focusStore.active || focusStore.active.state !== 'running'} onclick={() => focusStore.pause()}>Pause</button>
-          <button disabled={!focusStore.active || focusStore.active.state !== 'paused'} onclick={() => focusStore.resume()}>Resume</button>
-          <button disabled={!focusStore.active} onclick={() => stopActive(focusStore.active?.method === 'stopwatch')}>Stop</button>
-          <button disabled={!focusStore.active || focusStore.active.method !== 'pomodoro'} onclick={() => stopActive(true)}>Complete Period</button>
+          <button
+            class="primary"
+            disabled={Boolean(focusStore.active) || mode !== 'pomodoro'}
+            onclick={() => startPomodoro('focus')}>Start Focus</button
+          >
+          <button
+            disabled={Boolean(focusStore.active) || mode !== 'pomodoro'}
+            onclick={() => startPomodoro(breakPhase())}>Start Break</button
+          >
+          <button
+            class="primary"
+            disabled={Boolean(focusStore.active) || mode !== 'stopwatch'}
+            onclick={() => focusStore.startStopwatch(selectedTaskId || null, note)}
+            >Start Stopwatch</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.state !== 'running'}
+            onclick={() => focusStore.pause()}>Pause</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.state !== 'paused'}
+            onclick={() => focusStore.resume()}>Resume</button
+          >
+          <button
+            disabled={!focusStore.active}
+            onclick={() => stopActive(focusStore.active?.method === 'stopwatch')}>Stop</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.method !== 'pomodoro'}
+            onclick={() => stopActive(true)}>Complete Period</button
+          >
         </div>
       {:else if methodTab === 'timebox'}
         <div class="method-panel">
           <label>Start <input type="datetime-local" bind:value={timeboxStart} /></label>
-          <label>Minutes <input type="number" min="5" step="5" bind:value={timeboxMinutes} /></label>
+          <label>Minutes <input type="number" min="5" step="5" bind:value={timeboxMinutes} /></label
+          >
           <button class="primary" onclick={createTimebox}>Create Calendar Timebox</button>
         </div>
       {:else if methodTab === 'matrix'}
@@ -358,12 +465,30 @@
         </div>
       {:else if methodTab === 'flowtime'}
         <div class="method-panel">
-          <button class="primary" disabled={Boolean(focusStore.active)} onclick={startFlowtime}>Start Flowtime</button>
-          <button disabled={!focusStore.active || focusStore.active.state !== 'running'} onclick={() => focusStore.pause()}>Pause</button>
-          <button disabled={!focusStore.active || focusStore.active.state !== 'paused'} onclick={() => focusStore.resume()}>Resume</button>
-          <button disabled={!focusStore.active || focusStore.active.method !== 'flowtime'} onclick={stopFlowtime}>Stop and Save</button>
+          <button class="primary" disabled={Boolean(focusStore.active)} onclick={startFlowtime}
+            >Start Flowtime</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.state !== 'running'}
+            onclick={() => focusStore.pause()}>Pause</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.state !== 'paused'}
+            onclick={() => focusStore.resume()}>Resume</button
+          >
+          <button
+            disabled={!focusStore.active || focusStore.active.method !== 'flowtime'}
+            onclick={stopFlowtime}>Stop and Save</button
+          >
           {#if flowtimeBreakVisible}
-            <label>Suggested break <input type="number" min="1" step="1" bind:value={flowtimeBreakMinutes} /></label>
+            <label
+              >Suggested break <input
+                type="number"
+                min="1"
+                step="1"
+                bind:value={flowtimeBreakMinutes}
+              /></label
+            >
             <button onclick={() => startFlowtimeBreak()}>Accept Break</button>
             <button onclick={() => startFlowtimeBreak(flowtimeBreakMinutes)}>Modify Break</button>
             <button onclick={() => (flowtimeBreakVisible = false)}>Skip Break</button>
@@ -375,8 +500,19 @@
         <div class="method-panel">
           <label>Impact <input type="range" min="0" max="100" bind:value={paretoImpact} /></label>
           <label>Effort <input type="range" min="1" max="100" bind:value={paretoEffort} /></label>
-          <button class="primary" onclick={() => saveTaskMethod({ paretoImpact, paretoEffort, paretoScore: calculateParetoScore(paretoImpact, paretoEffort) })}>Save Pareto Score</button>
-          <button onclick={() => saveTaskMethod({ paretoOverride: !customOf(selectedTask()).paretoOverride })}>
+          <button
+            class="primary"
+            onclick={() =>
+              saveTaskMethod({
+                paretoImpact,
+                paretoEffort,
+                paretoScore: calculateParetoScore(paretoImpact, paretoEffort),
+              })}>Save Pareto Score</button
+          >
+          <button
+            onclick={() =>
+              saveTaskMethod({ paretoOverride: !customOf(selectedTask()).paretoOverride })}
+          >
             {customOf(selectedTask()).paretoOverride ? 'Remove Manual Override' : 'Manual Override'}
           </button>
         </div>
@@ -395,11 +531,23 @@
     </section>
 
     <aside class="summary-panel" aria-label="Focus summary">
-      <div><span>Today</span><strong>{formatFocusDuration(focusStore.summary.todaySeconds)}</strong></div>
-      <div><span>Total</span><strong>{formatFocusDuration(focusStore.summary.totalSeconds)}</strong></div>
+      <div>
+        <span>Today</span><strong>{formatFocusDuration(focusStore.summary.todaySeconds)}</strong>
+      </div>
+      <div>
+        <span>Total</span><strong>{formatFocusDuration(focusStore.summary.totalSeconds)}</strong>
+      </div>
       <div><span>Pomodoros</span><strong>{focusStore.summary.pomodoroCount}</strong></div>
-      <div><span>Stopwatch</span><strong>{formatFocusDuration(focusStore.summary.stopwatchSeconds)}</strong></div>
-      <div><span>Flowtime</span><strong>{formatFocusDuration(focusStore.summary.flowtimeSeconds)}</strong></div>
+      <div>
+        <span>Stopwatch</span><strong
+          >{formatFocusDuration(focusStore.summary.stopwatchSeconds)}</strong
+        >
+      </div>
+      <div>
+        <span>Flowtime</span><strong
+          >{formatFocusDuration(focusStore.summary.flowtimeSeconds)}</strong
+        >
+      </div>
     </aside>
   </div>
 
@@ -411,11 +559,21 @@
       {#each focusStore.history as session (session.id)}
         <article>
           <div>
-            <strong>{session.method === 'pomodoro' ? 'Pomodoro' : session.method === 'flowtime' ? 'Flowtime' : 'Stopwatch'}</strong>
+            <strong
+              >{session.method === 'pomodoro'
+                ? 'Pomodoro'
+                : session.method === 'flowtime'
+                  ? 'Flowtime'
+                  : 'Stopwatch'}</strong
+            >
             <span>{session.taskTitle || 'No linked task'}</span>
           </div>
           <span>{formatFocusDuration(session.durationSeconds)}</span>
-          <span>{session.plannedSeconds ? `${formatFocusDuration(session.plannedSeconds)} planned` : 'Unplanned'}</span>
+          <span
+            >{session.plannedSeconds
+              ? `${formatFocusDuration(session.plannedSeconds)} planned`
+              : 'Unplanned'}</span
+          >
           <span>{session.interruptions} interruptions</span>
         </article>
       {/each}

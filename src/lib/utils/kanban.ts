@@ -22,7 +22,9 @@ export function taskStatus(node: Node) {
 
 export function mergeCustomStatus(node: Node, status: string) {
   const custom =
-    node.properties.custom && typeof node.properties.custom === 'object' && !Array.isArray(node.properties.custom)
+    node.properties.custom &&
+    typeof node.properties.custom === 'object' &&
+    !Array.isArray(node.properties.custom)
       ? node.properties.custom
       : {};
   return { ...custom, status };
@@ -71,8 +73,14 @@ export function kanbanColumns(
   return containers.map((node) => ({ key: node.id, title: node.title || 'Untitled' }));
 }
 
-export function groupKanbanItems(columns: KanbanColumn[], mode: KanbanGroupMode, items: TaskProjectionItem[]) {
-  const groups = new Map(columns.map((column) => [column.key, { ...column, items: [] as TaskProjectionItem[] }]));
+export function groupKanbanItems(
+  columns: KanbanColumn[],
+  mode: KanbanGroupMode,
+  items: TaskProjectionItem[],
+) {
+  const groups = new Map(
+    columns.map((column) => [column.key, { ...column, items: [] as TaskProjectionItem[] }]),
+  );
   const ensure = (key: string, title: string) => {
     const group = groups.get(key) ?? { key, title, items: [] };
     groups.set(key, group);
@@ -83,12 +91,17 @@ export function groupKanbanItems(columns: KanbanColumn[], mode: KanbanGroupMode,
     if (mode === 'status') {
       ensure(taskStatus(item.node), taskStatus(item.node)).items.push(item);
     } else if (mode === 'priority') {
-      ensure(String(item.node.properties.priority ?? 4), `P${item.node.properties.priority ?? 4}`).items.push(item);
+      ensure(
+        String(item.node.properties.priority ?? 4),
+        `P${item.node.properties.priority ?? 4}`,
+      ).items.push(item);
     } else if (mode === 'tag') {
       if (item.tags.length === 0) ensure('none', 'No tags').items.push(item);
       for (const tag of item.tags) ensure(tag.id, tag.name).items.push(item);
     } else if (mode === 'workspace') {
-      ensure(item.workspace?.id ?? 'none', item.workspace?.title ?? 'No workspace').items.push(item);
+      ensure(item.workspace?.id ?? 'none', item.workspace?.title ?? 'No workspace').items.push(
+        item,
+      );
     } else if (mode === 'group') {
       const group = [...item.path].reverse().find((node) => node.nodeType === 'Group');
       ensure(group?.id ?? 'none', group?.title ?? 'No group').items.push(item);

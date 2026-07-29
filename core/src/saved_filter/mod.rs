@@ -43,7 +43,8 @@ impl SavedFilterService {
 
     pub fn list(&self) -> Result<Vec<SavedFilter>> {
         let conn = self.db.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT * FROM saved_filters ORDER BY position, updated_at DESC")?;
+        let mut stmt =
+            conn.prepare("SELECT * FROM saved_filters ORDER BY position, updated_at DESC")?;
         let rows = stmt
             .query_map([], map_saved_filter)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -100,14 +101,20 @@ impl SavedFilterService {
 
     pub fn get(&self, id: &str) -> Result<SavedFilter> {
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM saved_filters WHERE id = ?1", params![id], map_saved_filter)
-            .map_err(|_| Error::NotFound(format!("Saved filter not found: {}", id)))
+        conn.query_row(
+            "SELECT * FROM saved_filters WHERE id = ?1",
+            params![id],
+            map_saved_filter,
+        )
+        .map_err(|_| Error::NotFound(format!("Saved filter not found: {}", id)))
     }
 
     fn next_position(&self) -> Result<f64> {
         let conn = self.db.conn.lock().unwrap();
         let max: Option<f64> = conn
-            .query_row("SELECT MAX(position) FROM saved_filters", [], |row| row.get(0))
+            .query_row("SELECT MAX(position) FROM saved_filters", [], |row| {
+                row.get(0)
+            })
             .optional()?
             .flatten();
         Ok(max.unwrap_or(0.0) + 1000.0)
@@ -124,7 +131,9 @@ fn clean_name(value: &str) -> Result<String> {
 
 fn validate_definition(value: &serde_json::Value) -> Result<()> {
     if !value.is_object() {
-        return Err(Error::Validation("Saved filter definition must be an object".into()));
+        return Err(Error::Validation(
+            "Saved filter definition must be an object".into(),
+        ));
     }
     Ok(())
 }

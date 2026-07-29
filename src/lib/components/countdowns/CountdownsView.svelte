@@ -57,13 +57,20 @@
       <input
         type="checkbox"
         checked={countdownStore.showArchived}
-        onchange={(event) => countdownStore.setShowArchived((event.target as HTMLInputElement).checked)}
+        onchange={(event) =>
+          countdownStore.setShowArchived((event.target as HTMLInputElement).checked)}
       />
       Show archived
     </label>
   </div>
 
-  <form class="countdown-form" onsubmit={(event) => { event.preventDefault(); createCountdown(); }}>
+  <form
+    class="countdown-form"
+    onsubmit={(event) => {
+      event.preventDefault();
+      createCountdown();
+    }}
+  >
     <input placeholder="Countdown title" bind:value={title} required />
     <select bind:value={mode}>
       <option value="countdown">Countdown</option>
@@ -88,10 +95,19 @@
             <input
               value={countdown.title}
               aria-label="Countdown title"
-              onchange={(event) => countdownStore.update(countdown.id, { title: (event.target as HTMLInputElement).value })}
+              onchange={(event) =>
+                countdownStore.update(countdown.id, {
+                  title: (event.target as HTMLInputElement).value,
+                })}
             />
             <div class="edit-grid">
-              <select value={countdown.mode} onchange={(event) => countdownStore.update(countdown.id, { mode: (event.target as HTMLSelectElement).value as CountdownMode })}>
+              <select
+                value={countdown.mode}
+                onchange={(event) =>
+                  countdownStore.update(countdown.id, {
+                    mode: (event.target as HTMLSelectElement).value as CountdownMode,
+                  })}
+              >
                 <option value="countdown">Countdown</option>
                 <option value="countup">Count up</option>
               </select>
@@ -99,15 +115,29 @@
                 aria-label="Target date"
                 type="datetime-local"
                 value={isoToLocalInput(countdown.targetDate)}
-                onchange={(event) => countdownStore.update(countdown.id, { targetDate: localInputToIso((event.target as HTMLInputElement).value) })}
+                onchange={(event) =>
+                  countdownStore.update(countdown.id, {
+                    targetDate: localInputToIso((event.target as HTMLInputElement).value),
+                  })}
               />
               <input
                 aria-label="Reminder"
                 type="datetime-local"
                 value={isoToLocalInput(countdown.reminderAt)}
-                onchange={(event) => countdownStore.update(countdown.id, { reminderAt: (event.target as HTMLInputElement).value ? localInputToIso((event.target as HTMLInputElement).value) : null })}
+                onchange={(event) =>
+                  countdownStore.update(countdown.id, {
+                    reminderAt: (event.target as HTMLInputElement).value
+                      ? localInputToIso((event.target as HTMLInputElement).value)
+                      : null,
+                  })}
               />
-              <select value={countdown.recurrence ?? ''} onchange={(event) => countdownStore.update(countdown.id, { recurrence: (event.target as HTMLSelectElement).value || null })}>
+              <select
+                value={countdown.recurrence ?? ''}
+                onchange={(event) =>
+                  countdownStore.update(countdown.id, {
+                    recurrence: (event.target as HTMLSelectElement).value || null,
+                  })}
+              >
                 <option value="">No repeat</option>
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -118,7 +148,10 @@
                 aria-label="Color"
                 type="color"
                 value={countdown.color ?? '#10B981'}
-                onchange={(event) => countdownStore.update(countdown.id, { color: (event.target as HTMLInputElement).value })}
+                onchange={(event) =>
+                  countdownStore.update(countdown.id, {
+                    color: (event.target as HTMLInputElement).value,
+                  })}
               />
             </div>
           </div>
@@ -130,7 +163,9 @@
             <button onclick={() => countdownStore.archive(countdown.id, !countdown.archived)}>
               {countdown.archived ? 'Restore' : 'Archive'}
             </button>
-            <button class="danger" onclick={() => countdownStore.delete(countdown.id)}>Delete</button>
+            <button class="danger" onclick={() => countdownStore.delete(countdown.id)}
+              >Delete</button
+            >
           </div>
         </article>
       {/each}
@@ -197,7 +232,9 @@
   }
   .edit-grid {
     display: grid;
-    grid-template-columns: minmax(110px, 0.7fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(110px, 0.7fr) 42px;
+    grid-template-columns:
+      minmax(110px, 0.7fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(110px, 0.7fr)
+      42px;
     gap: 6px;
     min-width: 0;
     margin-top: 6px;

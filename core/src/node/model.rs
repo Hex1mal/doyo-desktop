@@ -24,7 +24,7 @@ impl NodeType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "Workspace" => Some(NodeType::Workspace),
             "Group" => Some(NodeType::Group),

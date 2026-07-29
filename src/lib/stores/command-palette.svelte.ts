@@ -5,9 +5,15 @@ const state = $state({
 });
 
 export const commandPaletteStore = {
-  get isOpen() { return state.isOpen; },
-  get query() { return state.query; },
-  get selectedIndex() { return state.selectedIndex; },
+  get isOpen() {
+    return state.isOpen;
+  },
+  get query() {
+    return state.query;
+  },
+  get selectedIndex() {
+    return state.selectedIndex;
+  },
 
   open() {
     state.isOpen = true;

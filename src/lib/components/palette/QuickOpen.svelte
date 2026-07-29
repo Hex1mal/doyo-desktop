@@ -105,7 +105,10 @@
               <span class="title">{node.title || '(untitled)'}</span>
               {#if node.parentId}
                 <span class="breadcrumb">
-                  {nodeStore.getAncestors(node.id).map((a) => a.title).join(' › ')}
+                  {nodeStore
+                    .getAncestors(node.id)
+                    .map((a) => a.title)
+                    .join(' › ')}
                 </span>
               {/if}
             </button>
@@ -127,9 +130,13 @@
 
 <style>
   .overlay {
-    position: fixed; inset: 0; z-index: 1000;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
     background: rgba(0, 0, 0, 0.4);
-    display: flex; align-items: flex-start; justify-content: center;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
     padding-top: 15vh;
   }
   .dialog {
@@ -172,8 +179,12 @@
     font-family: inherit;
     text-align: left;
   }
-  .result-item:hover { background: var(--bg-hover); }
-  .result-item.selected { background: var(--bg-active); }
+  .result-item:hover {
+    background: var(--bg-hover);
+  }
+  .result-item.selected {
+    background: var(--bg-active);
+  }
   .type-tag {
     font-size: var(--text-xs);
     padding: 1px 6px;
@@ -181,11 +192,28 @@
     font-weight: 600;
     flex-shrink: 0;
   }
-  .tTask { background: var(--priority-p4); color: white; }
-  .tGroup { background: var(--accent-subtle); color: var(--accent); }
-  .tNote { background: #e8f5e9; color: #2e7d32; }
-  .tWorkspace { background: #e3f2fd; color: #1565c0; }
-  .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tTask {
+    background: var(--priority-p4);
+    color: white;
+  }
+  .tGroup {
+    background: var(--accent-subtle);
+    color: var(--accent);
+  }
+  .tNote {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  .tWorkspace {
+    background: #e3f2fd;
+    color: #1565c0;
+  }
+  .title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .breadcrumb {
     font-size: var(--text-xs);
     color: var(--text-tertiary);
@@ -201,8 +229,12 @@
     color: var(--text-tertiary);
     font-size: var(--text-sm);
   }
-  .hint { color: var(--text-tertiary); }
-  .no-results { color: var(--text-tertiary); }
+  .hint {
+    color: var(--text-tertiary);
+  }
+  .no-results {
+    color: var(--text-tertiary);
+  }
   .footer {
     display: flex;
     gap: var(--space-4);

@@ -271,7 +271,9 @@ impl HabitService {
     pub fn upsert_log(&self, input: UpsertHabitLogInput) -> Result<HabitLog> {
         self.get(&input.habit_id)?;
         if input.value < 0.0 {
-            return Err(Error::Validation("Habit log value cannot be negative".into()));
+            return Err(Error::Validation(
+                "Habit log value cannot be negative".into(),
+            ));
         }
         let id = Uuid::now_v7().to_string();
         let now = Utc::now().to_rfc3339();
@@ -311,7 +313,9 @@ impl HabitService {
 
     pub fn list_logs(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<HabitLog>> {
         if to < from {
-            return Err(Error::Validation("Habit log end date must be on or after start date".into()));
+            return Err(Error::Validation(
+                "Habit log end date must be on or after start date".into(),
+            ));
         }
         let conn = self.db.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -329,16 +333,19 @@ impl HabitService {
         let habits = self.list(false)?;
         let logs = self.list_logs(from, to)?;
         let today = Utc::now().date_naive();
-        let by_habit: HashMap<String, Vec<HabitLog>> = logs.into_iter().fold(HashMap::new(), |mut map, log| {
-            map.entry(log.habit_id.clone()).or_default().push(log);
-            map
-        });
+        let by_habit: HashMap<String, Vec<HabitLog>> =
+            logs.into_iter().fold(HashMap::new(), |mut map, log| {
+                map.entry(log.habit_id.clone()).or_default().push(log);
+                map
+            });
         let completed_count: usize = by_habit
             .values()
             .flatten()
             .filter(|log| log.status == HabitLogStatus::Completed)
             .count();
-        let total_expected = habits.len().saturating_mul((to - from).num_days().max(0) as usize + 1);
+        let total_expected = habits
+            .len()
+            .saturating_mul((to - from).num_days().max(0) as usize + 1);
         let completed_today = by_habit
             .values()
             .flatten()
@@ -402,7 +409,9 @@ fn clean_title(value: &str) -> Result<String> {
 
 fn validate_goal(goal: f64) -> Result<()> {
     if !goal.is_finite() || goal <= 0.0 {
-        return Err(Error::Validation("Habit goal must be greater than zero".into()));
+        return Err(Error::Validation(
+            "Habit goal must be greater than zero".into(),
+        ));
     }
     Ok(())
 }
@@ -420,7 +429,10 @@ fn longest_daily_streak(dates: &[NaiveDate]) -> i64 {
     let mut current = 0;
     let mut previous: Option<NaiveDate> = None;
     for date in dates {
-        if previous.map(|prev| *date == prev + chrono::Duration::days(1)).unwrap_or(false) {
+        if previous
+            .map(|prev| *date == prev + chrono::Duration::days(1))
+            .unwrap_or(false)
+        {
             current += 1;
         } else {
             current = 1;
@@ -438,7 +450,9 @@ fn map_habit(row: &rusqlite::Row) -> rusqlite::Result<Habit> {
         title: row.get(row.as_ref().column_index("title").unwrap())?,
         icon: row.get(row.as_ref().column_index("icon").unwrap())?,
         color: row.get(row.as_ref().column_index("color").unwrap())?,
-        frequency: HabitFrequency::from_str(&row.get::<_, String>(row.as_ref().column_index("frequency").unwrap())?),
+        frequency: HabitFrequency::from_str(
+            &row.get::<_, String>(row.as_ref().column_index("frequency").unwrap())?,
+        ),
         days: serde_json::from_str(&days_raw).unwrap_or_default(),
         goal: row.get(row.as_ref().column_index("goal").unwrap())?,
         goal_unit: row.get(row.as_ref().column_index("goal_unit").unwrap())?,
@@ -456,7 +470,9 @@ fn map_habit_log(row: &rusqlite::Row) -> rusqlite::Result<HabitLog> {
         id: row.get(row.as_ref().column_index("id").unwrap())?,
         habit_id: row.get(row.as_ref().column_index("habit_id").unwrap())?,
         log_date: parse_naive_date(row.get(row.as_ref().column_index("log_date").unwrap())?),
-        status: HabitLogStatus::from_str(&row.get::<_, String>(row.as_ref().column_index("status").unwrap())?),
+        status: HabitLogStatus::from_str(
+            &row.get::<_, String>(row.as_ref().column_index("status").unwrap())?,
+        ),
         value: row.get(row.as_ref().column_index("value").unwrap())?,
         note: row.get(row.as_ref().column_index("note").unwrap())?,
         created_at: parse_date(row.get(row.as_ref().column_index("created_at").unwrap())?),

@@ -37,7 +37,11 @@ describe('timeline utilities', () => {
 
   it('supports due-only tasks and start/due ranges', () => {
     expect(taskTimelineRange(task({ dueDate: '2026-07-28T00:00:00Z' }))).not.toBeNull();
-    expect(taskTimelineRange(task({ startDate: '2026-07-27T00:00:00Z', dueDate: '2026-07-30T00:00:00Z' }))).not.toBeNull();
+    expect(
+      taskTimelineRange(
+        task({ startDate: '2026-07-27T00:00:00Z', dueDate: '2026-07-30T00:00:00Z' }),
+      ),
+    ).not.toBeNull();
   });
 
   it('moves and resizes ranges without changing hierarchy', () => {
@@ -52,6 +56,10 @@ describe('timeline utilities', () => {
     expect(validateTimelineRange(new Date('2026-07-29'), new Date('2026-07-28'))).toBe(false);
     const node = task({ startDate: '2026-07-27T00:00:00Z', dueDate: '2026-07-30T00:00:00Z' });
     expect(resizeTimelineStart(node, 5)).toBeNull();
-    expect(taskTimelineRange(task({ startDate: '2026-07-31T00:00:00Z', dueDate: '2026-07-30T00:00:00Z' }))).toBeNull();
+    expect(
+      taskTimelineRange(
+        task({ startDate: '2026-07-31T00:00:00Z', dueDate: '2026-07-30T00:00:00Z' }),
+      ),
+    ).toBeNull();
   });
 });

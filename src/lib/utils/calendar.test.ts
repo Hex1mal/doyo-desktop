@@ -104,7 +104,15 @@ describe('calendar utilities', () => {
       properties: { dueDate: '2026-07-28T00:00:00Z' },
     });
 
-    expect(tasksByDay([active, completed, deleted], false).get('2026-07-28')?.map((n) => n.id)).toEqual(['a']);
-    expect(tasksByDay([active, completed, deleted], true).get('2026-07-28')?.map((n) => n.id)).toEqual(['a', 'c']);
+    expect(
+      tasksByDay([active, completed, deleted], false)
+        .get('2026-07-28')
+        ?.map((n) => n.id),
+    ).toEqual(['a']);
+    expect(
+      tasksByDay([active, completed, deleted], true)
+        .get('2026-07-28')
+        ?.map((n) => n.id),
+    ).toEqual(['a', 'c']);
   });
 });

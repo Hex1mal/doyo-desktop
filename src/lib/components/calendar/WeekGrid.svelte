@@ -24,7 +24,9 @@
   let days = $derived(
     singleDay
       ? [currentDate]
-      : Array.from({ length: 7 }, (_, index) => addDays(weekStart(currentDate, firstDayOfWeek), index)),
+      : Array.from({ length: 7 }, (_, index) =>
+          addDays(weekStart(currentDate, firstDayOfWeek), index),
+        ),
   );
   let taskMap = $derived(tasksByDay(tasks, showCompleted));
   let blockMap = $derived(blocksByDay(blocks));
@@ -35,7 +37,9 @@
       const due = task.properties.dueDate ? new Date(task.properties.dueDate) : null;
       return due && due.getHours() === hour;
     });
-    const blockItems = (blockMap.get(key) ?? []).filter((block) => new Date(block.startTime).getHours() === hour);
+    const blockItems = (blockMap.get(key) ?? []).filter(
+      (block) => new Date(block.startTime).getHours() === hour,
+    );
     return { taskItems, blockItems };
   }
 
@@ -49,7 +53,10 @@
   }
 </script>
 
-<div class="week-grid" style={`grid-template-columns: 64px repeat(${days.length}, minmax(160px, 1fr))`}>
+<div
+  class="week-grid"
+  style={`grid-template-columns: 64px repeat(${days.length}, minmax(160px, 1fr))`}
+>
   <div class="corner"></div>
   {#each days as day}
     <div class="day-header">
@@ -72,7 +79,11 @@
         ondragover={(e) => e.preventDefault()}
         ondrop={dropOnSlot}
       >
-        <button class="slot-add" title="New time block" onclick={() => calendarStore.createBlock(day, hour)}>
+        <button
+          class="slot-add"
+          title="New time block"
+          onclick={() => calendarStore.createBlock(day, hour)}
+        >
           +
         </button>
         {#each items.taskItems as task (task.id)}

@@ -66,7 +66,9 @@ export const countdownStore = {
   async update(id: string, input: UpdateCountdownInput) {
     try {
       const updated = await countdownUpdate(id, input);
-      state.countdowns = state.countdowns.map((countdown) => (countdown.id === id ? updated : countdown));
+      state.countdowns = state.countdowns.map((countdown) =>
+        countdown.id === id ? updated : countdown,
+      );
       return updated;
     } catch (e) {
       toast.error(`Countdown update failed: ${String(e)}`);

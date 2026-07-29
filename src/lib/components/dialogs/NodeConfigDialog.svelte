@@ -109,7 +109,13 @@
       </header>
 
       <div class="content">
-        <form class="fields" onsubmit={(e) => { e.preventDefault(); save(); }}>
+        <form
+          class="fields"
+          onsubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
           <label>
             <span>Title</span>
             <input bind:this={titleInputEl} bind:value={title} required />

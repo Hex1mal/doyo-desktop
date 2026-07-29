@@ -150,11 +150,19 @@ export const habitStore = {
     }
   },
 
-  async setLog(habitId: string, status: HabitLogStatus, date = localDateKey(), value = 1, note = '') {
+  async setLog(
+    habitId: string,
+    status: HabitLogStatus,
+    date = localDateKey(),
+    value = 1,
+    note = '',
+  ) {
     try {
       const log = await habitLogUpsert({ habitId, logDate: date, status, value, note });
       state.logs = [
-        ...state.logs.filter((existing) => !(existing.habitId === habitId && existing.logDate === date)),
+        ...state.logs.filter(
+          (existing) => !(existing.habitId === habitId && existing.logDate === date),
+        ),
         log,
       ];
       const range = defaultRange();

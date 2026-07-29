@@ -46,9 +46,8 @@ async function notify(title: string, body: string) {
   try {
     const prefs = await settingsGet<{ pomodoro?: boolean }>('notification.preferences.v1');
     if (prefs?.pomodoro === false) return;
-    const { isPermissionGranted, requestPermission, sendNotification } = await import(
-      '@tauri-apps/plugin-notification'
-    );
+    const { isPermissionGranted, requestPermission, sendNotification } =
+      await import('@tauri-apps/plugin-notification');
     let granted = await isPermissionGranted();
     if (!granted) {
       const permission = await requestPermission();
@@ -163,7 +162,13 @@ export const focusStore = {
   },
 
   startStopwatch(taskId: string | null, note = '') {
-    return this.start({ method: 'stopwatch', taskId, plannedSeconds: 0, pomodoroPhase: null, note });
+    return this.start({
+      method: 'stopwatch',
+      taskId,
+      plannedSeconds: 0,
+      pomodoroPhase: null,
+      note,
+    });
   },
 
   startFlowtime(taskId: string | null, note = '') {
@@ -196,7 +201,10 @@ export const focusStore = {
   async stop(completed: boolean, note?: string) {
     if (!state.active) return false;
     try {
-      const stopped = await focusStop(state.active.id, { completed, note: note ?? state.active.note });
+      const stopped = await focusStop(state.active.id, {
+        completed,
+        note: note ?? state.active.note,
+      });
       state.active = null;
       await refreshLists();
       if (stopped.method === 'pomodoro' && completed) {

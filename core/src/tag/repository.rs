@@ -11,7 +11,9 @@ pub struct TagRepository {
 }
 
 impl TagRepository {
-    pub fn new(db: Arc<Database>) -> Self { Self { db } }
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
+    }
 
     fn clean_name(name: &str) -> Result<String> {
         let clean = name.trim();
@@ -48,40 +50,53 @@ impl TagRepository {
 
     pub fn get(&self, id: &str) -> Result<Tag> {
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM tags WHERE id = ?1", rusqlite::params![id], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                color: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        }).map_err(|_| Error::NotFound(format!("Tag not found: {}", id)))
+        conn.query_row(
+            "SELECT * FROM tags WHERE id = ?1",
+            rusqlite::params![id],
+            |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            },
+        )
+        .map_err(|_| Error::NotFound(format!("Tag not found: {}", id)))
     }
 
     pub fn find_by_name(&self, name: &str) -> Result<Tag> {
         let clean = Self::clean_name(name)?;
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM tags WHERE name = ?1 COLLATE NOCASE", rusqlite::params![clean], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                color: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        }).map_err(|_| Error::NotFound(format!("Tag not found: {}", clean)))
+        conn.query_row(
+            "SELECT * FROM tags WHERE name = ?1 COLLATE NOCASE",
+            rusqlite::params![clean],
+            |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            },
+        )
+        .map_err(|_| Error::NotFound(format!("Tag not found: {}", clean)))
     }
 
     pub fn list_all(&self) -> Result<Vec<Tag>> {
         let conn = self.db.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT * FROM tags ORDER BY name")?;
-        let tags = stmt.query_map([], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                color: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        })?.filter_map(|r| r.ok()).collect();
+        let tags = stmt
+            .query_map([], |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         Ok(tags)
     }
 
@@ -102,14 +117,19 @@ impl TagRepository {
             "UPDATE tags SET name = ?1, color = ?2 WHERE id = ?3",
             rusqlite::params![&name, &color, id],
         )?;
-        conn.query_row("SELECT * FROM tags WHERE id = ?1", rusqlite::params![id], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                color: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        }).map_err(|_| Error::NotFound(format!("Tag not found: {}", id)))
+        conn.query_row(
+            "SELECT * FROM tags WHERE id = ?1",
+            rusqlite::params![id],
+            |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            },
+        )
+        .map_err(|_| Error::NotFound(format!("Tag not found: {}", id)))
     }
 
     pub fn add_to_node(&self, node_id: &str, tag_id: &str) -> Result<()> {
@@ -135,14 +155,17 @@ impl TagRepository {
         let mut stmt = conn.prepare(
             "SELECT t.* FROM tags t JOIN node_tags nt ON t.id = nt.tag_id WHERE nt.node_id = ?1 ORDER BY t.name"
         )?;
-        let tags = stmt.query_map(rusqlite::params![node_id], |row| {
-            Ok(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                color: row.get(2)?,
-                created_at: row.get(3)?,
-            })
-        })?.filter_map(|r| r.ok()).collect();
+        let tags = stmt
+            .query_map(rusqlite::params![node_id], |row| {
+                Ok(Tag {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    color: row.get(2)?,
+                    created_at: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         Ok(tags)
     }
 
@@ -181,7 +204,9 @@ impl TagRepository {
                    AND json_type(properties, '$.custom.tags') = 'array'",
             )?;
             let rows = stmt
-                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             rows
         };

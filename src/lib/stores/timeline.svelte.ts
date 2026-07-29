@@ -2,7 +2,12 @@ import { nodeSetDueDate, nodeUpdate } from '$lib/api/client';
 import { nodeStore } from '$lib/stores/nodes.svelte';
 import { toast } from '$lib/stores/toast.svelte';
 import type { Node } from '$lib/types/node';
-import { moveTimelineRange, resizeTimelineEnd, resizeTimelineStart, validateTimelineRange } from '$lib/utils/timeline';
+import {
+  moveTimelineRange,
+  resizeTimelineEnd,
+  resizeTimelineStart,
+  validateTimelineRange,
+} from '$lib/utils/timeline';
 
 async function persistRange(node: Node, range: { startDate: string | null; dueDate: string }) {
   const before = node;

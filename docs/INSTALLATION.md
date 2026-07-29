@@ -49,7 +49,7 @@ It should use:
 
 - `Name=Doyo`
 - `Exec=doyo`
-- `Icon=io.github.sembee.doyo`
+- `Icon=io.github.hex1mal.doyo`
 - `Categories=Office;Utility;`
 
 ## Data Location
@@ -57,7 +57,7 @@ It should use:
 Linux app data:
 
 ```text
-~/.local/share/io.github.sembee.doyo/
+~/.local/share/io.github.hex1mal.doyo/
 ```
 
-Old TodoApp data is not removed automatically. Keep it until you have confirmed Doyo has migrated and loaded your data.
+Old Doyo and TodoApp data directories are not removed automatically. Keep them until you have confirmed Doyo has migrated and loaded your data.

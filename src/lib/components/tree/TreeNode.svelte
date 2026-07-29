@@ -287,7 +287,6 @@
       {/each}
     {/if}
   </span>
-
 </div>
 
 <!-- CONTEXT MENU -->

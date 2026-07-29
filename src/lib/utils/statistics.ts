@@ -12,7 +12,9 @@ export function uniqueActiveTaskRecords(nodes: Node[]) {
 export function taskStatistics(nodes: Node[], range: StatsRange, now = new Date()) {
   const tasks = uniqueActiveTaskRecords(nodes);
   const completedAll = tasks.filter((task) => task.isCompleted);
-  const completedInRange = completedAll.filter((task) => isWithinRange(task.completedAt, range, now));
+  const completedInRange = completedAll.filter((task) =>
+    isWithinRange(task.completedAt, range, now),
+  );
   const createdInRange = tasks.filter((task) => isWithinRange(task.createdAt, range, now));
   const overdue = tasks.filter((task) => {
     if (task.isCompleted || !task.properties.dueDate) return false;
@@ -27,8 +29,16 @@ export function taskStatistics(nodes: Node[], range: StatsRange, now = new Date(
     createdInRange: createdInRange.length,
     overdue: overdue.length,
     completionRate: tasks.length === 0 ? 0 : Math.round((completedAll.length / tasks.length) * 100),
-    completedTrend: buildDailyBuckets(range, completedInRange.map((task) => ({ date: task.completedAt })), now),
-    createdTrend: buildDailyBuckets(range, createdInRange.map((task) => ({ date: task.createdAt })), now),
+    completedTrend: buildDailyBuckets(
+      range,
+      completedInRange.map((task) => ({ date: task.completedAt })),
+      now,
+    ),
+    createdTrend: buildDailyBuckets(
+      range,
+      createdInRange.map((task) => ({ date: task.createdAt })),
+      now,
+    ),
   };
 }
 
@@ -52,7 +62,10 @@ export function focusStatistics(sessions: FocusSession[], range: StatsRange, now
     pomodoroCount: inRange.filter((session) => session.method === 'pomodoro').length,
     focusTrend: buildDailyBuckets(
       range,
-      inRange.map((session) => ({ date: session.startedAt, amount: Math.round(session.durationSeconds / 60) })),
+      inRange.map((session) => ({
+        date: session.startedAt,
+        amount: Math.round(session.durationSeconds / 60),
+      })),
       now,
     ),
   };
@@ -68,12 +81,15 @@ export function habitStatistics(logs: HabitLog[], range: StatsRange, now = new D
     completed: completed.length,
     partial: partial.length,
     skipped: skipped.length,
-    completionRate: inRange.length === 0 ? 0 : Math.round((completed.length / inRange.length) * 100),
+    completionRate:
+      inRange.length === 0 ? 0 : Math.round((completed.length / inRange.length) * 100),
     habitTrend: buildDailyBuckets(
       range,
-      inRange.map((log) => ({ date: `${log.logDate}T00:00:00`, amount: log.status === 'completed' ? 1 : 0 })),
+      inRange.map((log) => ({
+        date: `${log.logDate}T00:00:00`,
+        amount: log.status === 'completed' ? 1 : 0,
+      })),
       now,
     ),
   };
 }
-

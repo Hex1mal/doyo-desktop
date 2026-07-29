@@ -3,7 +3,11 @@
   import { toast } from '$lib/stores/toast.svelte';
   import type { Node } from '$lib/types/node';
 
-  type QuadrantKey = 'urgent_important' | 'not_urgent_important' | 'urgent_not_important' | 'not_urgent_not_important';
+  type QuadrantKey =
+    | 'urgent_important'
+    | 'not_urgent_important'
+    | 'urgent_not_important'
+    | 'not_urgent_not_important';
 
   const QUADRANTS: Array<{ key: QuadrantKey; label: string; desc: string }> = [
     { key: 'urgent_important', label: 'I. Do First', desc: 'Urgent & Important' },
@@ -14,14 +18,19 @@
 
   let dragTaskId = $state<string | null>(null);
   let hoverQuadrant = $state<QuadrantKey | 'unclassified' | null>(null);
-  let pointerDrag = $state<{ taskId: string; pointerId: number; startX: number; startY: number } | null>(null);
+  let pointerDrag = $state<{
+    taskId: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   let pointerDragging = $state(false);
   let suppressClick = $state(false);
 
   let allTasks = $derived(
     [...nodeStore.nodes.values()]
       .filter((n) => n.nodeType === 'Task' && !n.deletedAt && !n.isCompleted)
-      .sort((a, b) => a.position - b.position)
+      .sort((a, b) => a.position - b.position),
   );
 
   function quadrantKey(node: Node): string | null {
@@ -80,8 +89,10 @@
       document.body.classList.add('calendar-is-dragging');
       e.preventDefault();
       const target = document.elementFromPoint(e.clientX, e.clientY);
-      const drop = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-matrix-drop]') : null;
-      hoverQuadrant = (drop?.dataset.matrixDrop as QuadrantKey | 'unclassified' | undefined) ?? null;
+      const drop =
+        target instanceof HTMLElement ? target.closest<HTMLElement>('[data-matrix-drop]') : null;
+      hoverQuadrant =
+        (drop?.dataset.matrixDrop as QuadrantKey | 'unclassified' | undefined) ?? null;
     }
   }
 
@@ -102,7 +113,8 @@
     suppressClick = true;
     setTimeout(() => (suppressClick = false), 0);
     const target = document.elementFromPoint(e.clientX, e.clientY);
-    const drop = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-matrix-drop]') : null;
+    const drop =
+      target instanceof HTMLElement ? target.closest<HTMLElement>('[data-matrix-drop]') : null;
     const zone = drop?.dataset.matrixDrop;
     hoverQuadrant = null;
     if (!zone) return;
@@ -118,7 +130,9 @@
 
   async function moveTaskToQuadrant(taskId: string, quadrant: string | null) {
     await nodeStore.setTaskCustom(taskId, { eisenhowerQuadrant: quadrant });
-    toast.info(`Task moved to ${quadrant ? QUADRANTS.find(q => q.key === quadrant)?.label ?? quadrant : 'Unclassified'}`);
+    toast.info(
+      `Task moved to ${quadrant ? (QUADRANTS.find((q) => q.key === quadrant)?.label ?? quadrant) : 'Unclassified'}`,
+    );
   }
 
   function priorityBadge(p: number | undefined) {
@@ -157,7 +171,14 @@
 
   <div class="grid-2x2">
     {#each QUADRANTS as quad (quad.key)}
-      {@const tasks = quad.key === 'urgent_important' ? q1 : quad.key === 'not_urgent_important' ? q2 : quad.key === 'urgent_not_important' ? q3 : q4}
+      {@const tasks =
+        quad.key === 'urgent_important'
+          ? q1
+          : quad.key === 'not_urgent_important'
+            ? q2
+            : quad.key === 'urgent_not_important'
+              ? q3
+              : q4}
       <div
         class="quadrant"
         class:hovered={hoverQuadrant === quad.key}
@@ -185,13 +206,28 @@
               onpointermove={updatePointerDrag}
               onpointerup={endPointerDrag}
               onpointercancel={cancelPointerDrag}
-              onclick={() => { if (!suppressClick) { nodeStore.select(task.id); nodeStore.setViewMode('tree'); } }}
-              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { nodeStore.select(task.id); nodeStore.setViewMode('tree'); e.preventDefault(); } }}
+              onclick={() => {
+                if (!suppressClick) {
+                  nodeStore.select(task.id);
+                  nodeStore.setViewMode('tree');
+                }
+              }}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  nodeStore.select(task.id);
+                  nodeStore.setViewMode('tree');
+                  e.preventDefault();
+                }
+              }}
             >
               <span class="task-title">{task.title || 'Untitled'}</span>
               <div class="task-meta">
-                {#if task.properties.priority}<span class="priority">{priorityBadge(task.properties.priority)}</span>{/if}
-                {#if task.properties.dueDate}<span class="due">{dueLabel(task.properties.dueDate)}</span>{/if}
+                {#if task.properties.priority}<span class="priority"
+                    >{priorityBadge(task.properties.priority)}</span
+                  >{/if}
+                {#if task.properties.dueDate}<span class="due"
+                    >{dueLabel(task.properties.dueDate)}</span
+                  >{/if}
               </div>
             </div>
           {/each}
@@ -230,13 +266,27 @@
           onpointermove={updatePointerDrag}
           onpointerup={endPointerDrag}
           onpointercancel={cancelPointerDrag}
-          onclick={() => { if (!suppressClick) { nodeStore.select(task.id); nodeStore.setViewMode('tree'); } }}
-          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { nodeStore.select(task.id); nodeStore.setViewMode('tree'); e.preventDefault(); } }}
+          onclick={() => {
+            if (!suppressClick) {
+              nodeStore.select(task.id);
+              nodeStore.setViewMode('tree');
+            }
+          }}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              nodeStore.select(task.id);
+              nodeStore.setViewMode('tree');
+              e.preventDefault();
+            }
+          }}
         >
           <span class="task-title">{task.title || 'Untitled'}</span>
           <div class="task-meta">
-            {#if task.properties.priority}<span class="priority">{priorityBadge(task.properties.priority)}</span>{/if}
-            {#if task.properties.dueDate}<span class="due">{dueLabel(task.properties.dueDate)}</span>{/if}
+            {#if task.properties.priority}<span class="priority"
+                >{priorityBadge(task.properties.priority)}</span
+              >{/if}
+            {#if task.properties.dueDate}<span class="due">{dueLabel(task.properties.dueDate)}</span
+              >{/if}
           </div>
         </div>
       {/each}
@@ -262,8 +312,13 @@
     flex-wrap: wrap;
     margin-bottom: 14px;
   }
-  .matrix-toolbar h2 { margin: 0; }
-  .matrix-toolbar p { color: var(--text-tertiary); font-size: var(--text-sm); }
+  .matrix-toolbar h2 {
+    margin: 0;
+  }
+  .matrix-toolbar p {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+  }
   .clear-btn {
     margin-left: auto;
     border: 1px solid var(--border);
@@ -274,7 +329,10 @@
     padding: 6px 12px;
     font-size: var(--text-sm);
   }
-  .clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .clear-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
   .grid-2x2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -290,11 +348,13 @@
     display: flex;
     flex-direction: column;
     min-height: 180px;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
   }
   .quadrant.hovered {
     border-color: var(--accent);
-    background: var(--accent-subtle, rgba(37,99,235,0.05));
+    background: var(--accent-subtle, rgba(37, 99, 235, 0.05));
   }
   .unclassified {
     border: 2px solid var(--border);
@@ -302,11 +362,13 @@
     padding: 10px;
     background: var(--bg-panel);
     margin-top: 10px;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
   }
   .unclassified.hovered {
     border-color: var(--accent);
-    background: var(--accent-subtle, rgba(37,99,235,0.05));
+    background: var(--accent-subtle, rgba(37, 99, 235, 0.05));
   }
   .quad-header {
     display: flex;
@@ -317,8 +379,14 @@
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
   }
-  .quad-header strong { font-size: var(--text-sm); white-space: nowrap; }
-  .quad-header span { font-size: var(--text-xs); color: var(--text-tertiary); }
+  .quad-header strong {
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+  .quad-header span {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+  }
   .quad-header .count {
     margin-left: auto;
     background: var(--bg-active);
@@ -349,8 +417,12 @@
     gap: 3px;
     min-width: 0;
   }
-  .task-card:hover { border-color: var(--accent); }
-  .task-card:active { cursor: grabbing; }
+  .task-card:hover {
+    border-color: var(--accent);
+  }
+  .task-card:active {
+    cursor: grabbing;
+  }
   .task-title {
     font-size: var(--text-sm);
     overflow: hidden;

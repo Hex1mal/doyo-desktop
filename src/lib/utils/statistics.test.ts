@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { FocusSession, HabitLog, Node } from '$lib/types/node';
-import { focusStatistics, habitStatistics, taskStatistics, uniqueActiveTaskRecords } from './statistics';
+import {
+  focusStatistics,
+  habitStatistics,
+  taskStatistics,
+  uniqueActiveTaskRecords,
+} from './statistics';
 
 function node(partial: Partial<Node> & Pick<Node, 'id' | 'nodeType'>): Node {
   return {
@@ -65,18 +70,30 @@ describe('statistics utilities', () => {
     const duplicateParent = { ...parent };
     const group = node({ id: 'g', nodeType: 'Group' });
     const deleted = node({ id: 't3', nodeType: 'Task', deletedAt: '2026-07-29T00:00:00Z' });
-    expect(uniqueActiveTaskRecords([parent, subtask, duplicateParent, group, deleted]).map((task) => task.id)).toEqual([
-      't1',
-      't2',
-    ]);
+    expect(
+      uniqueActiveTaskRecords([parent, subtask, duplicateParent, group, deleted]).map(
+        (task) => task.id,
+      ),
+    ).toEqual(['t1', 't2']);
   });
 
   it('builds task totals without recursive descendant double counting', () => {
     const now = new Date('2026-07-29T12:00:00Z');
     const stats = taskStatistics(
       [
-        node({ id: 'parent', nodeType: 'Task', isCompleted: true, completedAt: '2026-07-29T01:00:00Z' }),
-        node({ id: 'child', nodeType: 'Task', parentId: 'parent', isCompleted: true, completedAt: '2026-07-29T02:00:00Z' }),
+        node({
+          id: 'parent',
+          nodeType: 'Task',
+          isCompleted: true,
+          completedAt: '2026-07-29T01:00:00Z',
+        }),
+        node({
+          id: 'child',
+          nodeType: 'Task',
+          parentId: 'parent',
+          isCompleted: true,
+          completedAt: '2026-07-29T02:00:00Z',
+        }),
       ],
       'day',
       now,
@@ -107,7 +124,11 @@ describe('statistics utilities', () => {
   it('calculates habit completion rates from real logs', () => {
     const now = new Date('2026-07-29T12:00:00Z');
     const stats = habitStatistics(
-      [log({ id: 'a', status: 'completed' }), log({ id: 'b', status: 'partial' }), log({ id: 'c', status: 'skipped' })],
+      [
+        log({ id: 'a', status: 'completed' }),
+        log({ id: 'b', status: 'partial' }),
+        log({ id: 'c', status: 'skipped' }),
+      ],
       'day',
       now,
     );
@@ -116,4 +137,3 @@ describe('statistics utilities', () => {
     expect(stats.completionRate).toBe(33);
   });
 });
-

@@ -285,7 +285,9 @@ export async function nodeUpdate(id: string, changes: UpdateNodeInput): Promise<
       },
     };
   }
-  return normalizeNode(await invoke('node_update', { id, changes: denormalizeUpdateNodeInput(normalizedChanges) }));
+  return normalizeNode(
+    await invoke('node_update', { id, changes: denormalizeUpdateNodeInput(normalizedChanges) }),
+  );
 }
 
 export async function nodeDelete(id: string, permanent: boolean = false): Promise<void> {
@@ -457,10 +459,7 @@ export async function timeBlockCreate(input: CreateTimeBlockInput): Promise<Time
   return normalizeTimeBlock(await invoke('time_block_create', { input }));
 }
 
-export async function timeBlockUpdate(
-  id: string,
-  input: UpdateTimeBlockInput,
-): Promise<TimeBlock> {
+export async function timeBlockUpdate(id: string, input: UpdateTimeBlockInput): Promise<TimeBlock> {
   return normalizeTimeBlock(await invoke('time_block_update', { id, input }));
 }
 
@@ -594,7 +593,9 @@ export async function settingsDelete(key: string): Promise<void> {
   return invoke('settings_delete', { key });
 }
 
-export async function settingsList(prefix: string | null = null): Promise<Array<[string, unknown]>> {
+export async function settingsList(
+  prefix: string | null = null,
+): Promise<Array<[string, unknown]>> {
   return invoke<Array<[string, unknown]>>('settings_list', { prefix });
 }
 

@@ -12,7 +12,7 @@ export default {
       strict: true,
     }),
     alias: {
-      '$lib': './src/lib',
+      $lib: './src/lib',
     },
   },
 };

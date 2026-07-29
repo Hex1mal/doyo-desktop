@@ -36,15 +36,7 @@ import {
 } from '$lib/utils/task-projection';
 
 export type ViewMode =
-  | 'tree'
-  | 'today'
-  | 'inbox'
-  | 'upcoming'
-  | 'completed'
-  | 'trash'
-  | 'tag'
-  | 'filter'
-  | 'search';
+  'tree' | 'today' | 'inbox' | 'upcoming' | 'completed' | 'trash' | 'tag' | 'filter' | 'search';
 
 const state = $state({
   nodes: new Map<string, Node>(),

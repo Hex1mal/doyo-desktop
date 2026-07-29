@@ -16,7 +16,8 @@ const state = $state({
 
 function loadSent() {
   try {
-    const raw = window.localStorage.getItem(SENT_KEY) ?? window.localStorage.getItem(LEGACY_SENT_KEY);
+    const raw =
+      window.localStorage.getItem(SENT_KEY) ?? window.localStorage.getItem(LEGACY_SENT_KEY);
     if (!window.localStorage.getItem(SENT_KEY) && raw) window.localStorage.setItem(SENT_KEY, raw);
     state.sent = new Set(raw ? (JSON.parse(raw) as string[]) : []);
   } catch {
@@ -30,9 +31,8 @@ function persistSent() {
 
 async function send(reminder: DueReminder) {
   try {
-    const { isPermissionGranted, requestPermission, sendNotification } = await import(
-      '@tauri-apps/plugin-notification'
-    );
+    const { isPermissionGranted, requestPermission, sendNotification } =
+      await import('@tauri-apps/plugin-notification');
     let granted = await isPermissionGranted();
     if (!granted) {
       const permission = await requestPermission();
@@ -55,12 +55,16 @@ async function send(reminder: DueReminder) {
 
 async function checkDue() {
   await Promise.all([habitStore.load(), countdownStore.load()]);
-  const prefs = await settingsGet<{ habits?: boolean; countdowns?: boolean }>('notification.preferences.v1').catch(
-    () => null,
-  );
+  const prefs = await settingsGet<{ habits?: boolean; countdowns?: boolean }>(
+    'notification.preferences.v1',
+  ).catch(() => null);
   const reminders = [
-    ...(prefs?.habits === false ? [] : dueHabitReminders(habitStore.habits, new Date(), state.sent)),
-    ...(prefs?.countdowns === false ? [] : dueCountdownReminders(countdownStore.countdowns, new Date(), state.sent)),
+    ...(prefs?.habits === false
+      ? []
+      : dueHabitReminders(habitStore.habits, new Date(), state.sent)),
+    ...(prefs?.countdowns === false
+      ? []
+      : dueCountdownReminders(countdownStore.countdowns, new Date(), state.sent)),
   ];
   for (const reminder of reminders) {
     await send(reminder);

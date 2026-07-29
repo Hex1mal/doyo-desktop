@@ -221,9 +221,8 @@ export const calendarStore = {
 
   async finishPointerDrop(payload: CalendarDragPayload, clientX: number, clientY: number) {
     const target = document.elementFromPoint(clientX, clientY);
-    const dropElement = target instanceof HTMLElement
-      ? target.closest<HTMLElement>('[data-calendar-drop]')
-      : null;
+    const dropElement =
+      target instanceof HTMLElement ? target.closest<HTMLElement>('[data-calendar-drop]') : null;
     if (!dropElement) {
       toast.error('Drop on a calendar day or time slot');
       return null;
