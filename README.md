@@ -68,12 +68,12 @@ Desktop shortcuts, such as `Super+T`, are configured through the operating syste
 
 ## Data Location
 
-Doyo uses the Tauri application data directory for identifier `io.github.sembee.doyo`.
+Doyo uses the Tauri application data directory for identifier `io.github.hex1mal.doyo`.
 
 Typical Linux path:
 
 ```text
-~/.local/share/io.github.sembee.doyo/
+~/.local/share/io.github.hex1mal.doyo/
 ```
 
 Database file:
@@ -82,11 +82,13 @@ Database file:
 doyo.db
 ```
 
-When first launched after upgrading from the older TodoApp identifier, Doyo copies data from `~/.local/share/com.todoapp.desktop/` if the new Doyo database does not already exist. The old directory is left in place as a recovery copy.
+When first launched after upgrading from an older identifier, Doyo copies data from `~/.local/share/io.github.sembee.doyo/` or `~/.local/share/com.todoapp.desktop/` if the new Doyo database does not already exist. Old directories are left in place as recovery copies.
 
 ## Backup And Restore
 
-Use Settings -> Data and Backup to create or restore local database backups. Backups are stored in the app data directory under `backups/` and are not intended to be committed to Git.
+Use Settings -> Data and Backup to create or restore local SQLite database backups. Backups are stored in the app data directory under `backups/` and are not intended to be committed to Git.
+
+JSON import/export is a structured transfer format for moving Doyo records between databases. It is not a byte-for-byte backup. Use SQLite backup/restore for exact recovery.
 
 ## Project Structure
 
@@ -95,7 +97,6 @@ core/        Rust core library and SQLite services
 src/         SvelteKit frontend
 src-tauri/   Tauri shell and desktop packaging
 docs/        Public documentation
-plugins/     Local plugin examples
 ```
 
 ## Roadmap
@@ -111,4 +112,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Doyo is licensed under the GNU Affero General Public License v3.0. The existing project license was AGPL-3.0, so this release keeps that license rather than switching to MIT.
+Doyo is licensed under AGPL-3.0-only. See [LICENSE](LICENSE).

@@ -1,9 +1,9 @@
 ---
 name: Bug report
 about: Report a reproducible problem in Doyo
-title: "[Bug]: "
+title: '[Bug]: '
 labels: bug
-assignees: ""
+assignees: ''
 ---
 
 ## Summary
@@ -12,9 +12,9 @@ Describe the problem clearly.
 
 ## Steps To Reproduce
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Expected Behavior
 

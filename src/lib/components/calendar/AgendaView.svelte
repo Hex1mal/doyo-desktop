@@ -1,6 +1,12 @@
 <script lang="ts">
   import type { Node, TimeBlock } from '$lib/types/node';
-  import { addDays, blocksByDay, localDayKey, startOfLocalDay, tasksByDay } from '$lib/utils/calendar';
+  import {
+    addDays,
+    blocksByDay,
+    localDayKey,
+    startOfLocalDay,
+    tasksByDay,
+  } from '$lib/utils/calendar';
   import CalendarItem from './CalendarItem.svelte';
 
   let {
@@ -15,7 +21,9 @@
     blocks: TimeBlock[];
   } = $props();
 
-  let days = $derived(Array.from({ length: 30 }, (_, index) => addDays(startOfLocalDay(currentDate), index)));
+  let days = $derived(
+    Array.from({ length: 30 }, (_, index) => addDays(startOfLocalDay(currentDate), index)),
+  );
   let taskMap = $derived(tasksByDay(tasks, showCompleted));
   let blockMap = $derived(blocksByDay(blocks));
 </script>

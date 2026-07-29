@@ -200,7 +200,9 @@ impl FocusService {
              ORDER BY started_at DESC
              LIMIT 1",
         )?;
-        stmt.query_row([], map_focus_session).optional().map_err(Into::into)
+        stmt.query_row([], map_focus_session)
+            .optional()
+            .map_err(Into::into)
     }
 
     pub fn list_recent(&self, limit: i64) -> Result<Vec<FocusSession>> {
@@ -255,7 +257,9 @@ impl FocusService {
     pub fn pause(&self, id: &str) -> Result<FocusSession> {
         let current = self.get(id)?;
         if current.state != FocusState::Running {
-            return Err(Error::Validation("Only a running focus timer can be paused".into()));
+            return Err(Error::Validation(
+                "Only a running focus timer can be paused".into(),
+            ));
         }
         let now = Utc::now();
         let elapsed = elapsed_since(current.last_started_at, now);
@@ -280,7 +284,9 @@ impl FocusService {
     pub fn resume(&self, id: &str) -> Result<FocusSession> {
         let current = self.get(id)?;
         if current.state != FocusState::Paused {
-            return Err(Error::Validation("Only a paused focus timer can be resumed".into()));
+            return Err(Error::Validation(
+                "Only a paused focus timer can be resumed".into(),
+            ));
         }
         let now = Utc::now();
         {
@@ -300,7 +306,9 @@ impl FocusService {
     pub fn stop(&self, id: &str, input: StopFocusInput) -> Result<FocusSession> {
         let current = self.get(id)?;
         if current.state != FocusState::Running && current.state != FocusState::Paused {
-            return Err(Error::Validation("Only an active focus timer can be stopped".into()));
+            return Err(Error::Validation(
+                "Only an active focus timer can be stopped".into(),
+            ));
         }
         let now = Utc::now();
         let elapsed = if current.state == FocusState::Running {
@@ -309,7 +317,11 @@ impl FocusService {
             0
         };
         let duration = (current.accumulated_seconds + elapsed).max(0);
-        let state = if input.completed { "completed" } else { "stopped" };
+        let state = if input.completed {
+            "completed"
+        } else {
+            "stopped"
+        };
         {
             let conn = self.db.conn.lock().unwrap();
             conn.execute(
@@ -330,8 +342,12 @@ impl FocusService {
 
     pub fn get(&self, id: &str) -> Result<FocusSession> {
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM focus_sessions WHERE id = ?1", params![id], map_focus_session)
-            .map_err(|_| Error::NotFound(format!("Focus session not found: {}", id)))
+        conn.query_row(
+            "SELECT * FROM focus_sessions WHERE id = ?1",
+            params![id],
+            map_focus_session,
+        )
+        .map_err(|_| Error::NotFound(format!("Focus session not found: {}", id)))
     }
 
     fn validate_start(&self, input: &StartFocusInput) -> Result<()> {
@@ -348,7 +364,9 @@ impl FocusService {
         if (input.method == FocusMethod::Stopwatch || input.method == FocusMethod::Flowtime)
             && input.planned_seconds < 0
         {
-            return Err(Error::Validation("Stopwatch duration cannot be negative".into()));
+            return Err(Error::Validation(
+                "Stopwatch duration cannot be negative".into(),
+            ));
         }
         Ok(())
     }
@@ -368,8 +386,10 @@ impl FocusService {
         let Some((node_type, title, deleted_at)) = row else {
             return Err(Error::Validation("Linked focus task does not exist".into()));
         };
-        if NodeType::from_str(&node_type) != Some(NodeType::Task) || deleted_at.is_some() {
-            return Err(Error::Validation("Focus session can only link to an active task".into()));
+        if NodeType::parse(&node_type) != Some(NodeType::Task) || deleted_at.is_some() {
+            return Err(Error::Validation(
+                "Focus session can only link to an active task".into(),
+            ));
         }
         Ok((Some(task_id.to_string()), title))
     }

@@ -6,7 +6,7 @@ resolver = "2"
 version = "1.0.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-repository = "https://github.com/sembee/doyo-desktop"
+repository = "https://github.com/Hex1mal/doyo-desktop"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -17,5 +17,4 @@ thiserror = "2"
 log = "0.4"
 env_logger = "0.11"
 rusqlite = { version = "0.32", features = ["bundled", "vtab", "array", "column_decltype", "modern_sqlite"] }
-rquickjs = "0.8"
 tokio = { version = "1", features = ["full"] }

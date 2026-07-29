@@ -1,9 +1,9 @@
 ---
 name: Feature request
 about: Suggest an improvement for Doyo
-title: "[Feature]: "
+title: '[Feature]: '
 labels: enhancement
-assignees: ""
+assignees: ''
 ---
 
 ## Problem

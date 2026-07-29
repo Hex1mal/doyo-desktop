@@ -9,15 +9,19 @@ pub struct SettingsRepository {
 }
 
 impl SettingsRepository {
-    pub fn new(db: Arc<Database>) -> Self { Self { db } }
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
+    }
 
     pub fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         let conn = self.db.conn.lock().unwrap();
-        let result: Option<String> = conn.query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            rusqlite::params![key],
-            |row| row.get(0),
-        ).ok();
+        let result: Option<String> = conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = ?1",
+                rusqlite::params![key],
+                |row| row.get(0),
+            )
+            .ok();
         match result {
             Some(val) => Ok(Some(serde_json::from_str(&val)?)),
             None => Ok(None),
@@ -38,16 +42,18 @@ impl SettingsRepository {
 
     pub fn delete(&self, key: &str) -> Result<()> {
         let conn = self.db.conn.lock().unwrap();
-        conn.execute("DELETE FROM settings WHERE key = ?1", rusqlite::params![key])?;
+        conn.execute(
+            "DELETE FROM settings WHERE key = ?1",
+            rusqlite::params![key],
+        )?;
         Ok(())
     }
 
     pub fn list(&self, prefix: Option<&str>) -> Result<Vec<(String, Value)>> {
         let conn = self.db.conn.lock().unwrap();
         let rows = if let Some(prefix) = prefix {
-            let mut stmt = conn.prepare(
-                "SELECT key, value FROM settings WHERE key LIKE ?1 ORDER BY key",
-            )?;
+            let mut stmt =
+                conn.prepare("SELECT key, value FROM settings WHERE key LIKE ?1 ORDER BY key")?;
             let rows = stmt
                 .query_map(rusqlite::params![format!("{}%", prefix)], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

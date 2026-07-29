@@ -32,11 +32,25 @@ export function parseNaturalDate(input: string): string | null {
     return at(d);
   }
 
-  const nextDow = s.match(/^next\s+(mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/);
+  const nextDow = s.match(
+    /^next\s+(mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/,
+  );
   if (nextDow) {
     const map: Record<string, number> = {
-      sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tuesday: 2, wed: 3, wednesday: 3,
-      thu: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6,
+      sun: 0,
+      sunday: 0,
+      mon: 1,
+      monday: 1,
+      tue: 2,
+      tuesday: 2,
+      wed: 3,
+      wednesday: 3,
+      thu: 4,
+      thursday: 4,
+      fri: 5,
+      friday: 5,
+      sat: 6,
+      saturday: 6,
     };
     const target = map[nextDow[1]];
     const d = new Date(now);
@@ -56,15 +70,20 @@ export function parseNaturalDate(input: string): string | null {
   if (slash) {
     const a = Number(slash[1]);
     const b = Number(slash[2]);
-    const y = slash[3] ? Number(slash[3].length === 2 ? '20' + slash[3] : slash[3]) : now.getFullYear();
+    const y = slash[3]
+      ? Number(slash[3].length === 2 ? '20' + slash[3] : slash[3])
+      : now.getFullYear();
     // Prefer ISO-ish: if first > 12 treat as DD/MM else MM/DD for US, but default DD/MM for Linux power users
     let month: number, day: number;
     if (a > 12) {
-      day = a; month = b;
+      day = a;
+      month = b;
     } else if (b > 12) {
-      month = a; day = b;
+      month = a;
+      day = b;
     } else {
-      day = a; month = b; // DD/MM default
+      day = a;
+      month = b; // DD/MM default
     }
     const d = new Date(y, month - 1, day, 9, 0, 0);
     if (!isNaN(d.getTime())) return d.toISOString();

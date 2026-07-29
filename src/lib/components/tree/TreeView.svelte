@@ -41,7 +41,9 @@
   let completedGroups = $derived(
     groupProjection(completedSearchItems, listGroup === 'none' ? 'completionPeriod' : listGroup),
   );
-  let upcomingGroups = $derived(groupProjection(upcomingItems, listGroup === 'none' ? 'due' : listGroup));
+  let upcomingGroups = $derived(
+    groupProjection(upcomingItems, listGroup === 'none' ? 'due' : listGroup),
+  );
   let tagGroups = $derived(groupProjection(tagItems, listGroup));
   let filterGroups = $derived(groupProjection(filteredItems, listGroup));
   let selected = $derived(nodeStore.getSelected());
@@ -121,7 +123,9 @@
   }
 
   function updateDensity(value: string) {
-    uiStore.setListPrefs(nodeStore.viewMode, { density: value === 'compact' ? 'compact' : 'comfortable' });
+    uiStore.setListPrefs(nodeStore.viewMode, {
+      density: value === 'compact' ? 'compact' : 'comfortable',
+    });
   }
 
   function validRestoreTargets(node: { nodeType: string; id: string }) {
@@ -129,9 +133,14 @@
       .filter((target) => {
         if (target.id === node.id || target.deletedAt) return false;
         if (node.nodeType === 'Workspace') return false;
-        if (node.nodeType === 'Group') return target.nodeType === 'Workspace' || target.nodeType === 'Group';
+        if (node.nodeType === 'Group')
+          return target.nodeType === 'Workspace' || target.nodeType === 'Group';
         if (node.nodeType === 'Task') {
-          return target.nodeType === 'Workspace' || target.nodeType === 'Group' || target.nodeType === 'Task';
+          return (
+            target.nodeType === 'Workspace' ||
+            target.nodeType === 'Group' ||
+            target.nodeType === 'Task'
+          );
         }
         return false;
       })
@@ -203,13 +212,42 @@
       <div class="view-heading">
         <div>
           <h2 class="view-title">Next 7 Days</h2>
-          <p class="view-hint">Today plus the next six local calendar days. Overdue tasks are separate.</p>
+          <p class="view-hint">
+            Today plus the next six local calendar days. Overdue tasks are separate.
+          </p>
         </div>
       </div>
       <div class="list-controls">
-        <label>Sort <select value={listPrefs.sort} onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}><option value="manual">Manual</option><option value="title">Title</option><option value="created">Created</option><option value="updated">Updated</option><option value="due">Due date</option><option value="priority">Priority</option></select></label>
-        <label>Group <select value={listPrefs.group} onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}><option value="none">None</option><option value="workspace">Workspace</option><option value="group">Group/Subgroup</option><option value="due">Due date</option><option value="priority">Priority</option><option value="tag">Tag</option></select></label>
-        <label>Density <select value={listPrefs.density} onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+        <label
+          >Sort <select
+            value={listPrefs.sort}
+            onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}
+            ><option value="manual">Manual</option><option value="title">Title</option><option
+              value="created">Created</option
+            ><option value="updated">Updated</option><option value="due">Due date</option><option
+              value="priority">Priority</option
+            ></select
+          ></label
+        >
+        <label
+          >Group <select
+            value={listPrefs.group}
+            onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}
+            ><option value="none">None</option><option value="workspace">Workspace</option><option
+              value="group">Group/Subgroup</option
+            ><option value="due">Due date</option><option value="priority">Priority</option><option
+              value="tag">Tag</option
+            ></select
+          ></label
+        >
+        <label
+          >Density <select
+            value={listPrefs.density}
+            onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}
+            ><option value="comfortable">Comfortable</option><option value="compact">Compact</option
+            ></select
+          ></label
+        >
       </div>
       {#if upcomingItems.length === 0}
         <div class="empty-state small">
@@ -246,13 +284,42 @@
       </div>
       <div class="list-controls">
         <label>Search <input placeholder="Completed search" bind:value={completedSearch} /></label>
-        <label>Sort <select value={listPrefs.sort} onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}><option value="completed">Completion date</option><option value="title">Title</option><option value="created">Created</option><option value="updated">Updated</option><option value="due">Due date</option><option value="priority">Priority</option></select></label>
-        <label>Group <select value={listPrefs.group} onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}><option value="none">Completion period</option><option value="workspace">Workspace</option><option value="group">Group/Subgroup</option><option value="due">Due date</option><option value="priority">Priority</option><option value="tag">Tag</option></select></label>
-        <label>Density <select value={listPrefs.density} onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+        <label
+          >Sort <select
+            value={listPrefs.sort}
+            onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}
+            ><option value="completed">Completion date</option><option value="title">Title</option
+            ><option value="created">Created</option><option value="updated">Updated</option><option
+              value="due">Due date</option
+            ><option value="priority">Priority</option></select
+          ></label
+        >
+        <label
+          >Group <select
+            value={listPrefs.group}
+            onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}
+            ><option value="none">Completion period</option><option value="workspace"
+              >Workspace</option
+            ><option value="group">Group/Subgroup</option><option value="due">Due date</option
+            ><option value="priority">Priority</option><option value="tag">Tag</option></select
+          ></label
+        >
+        <label
+          >Density <select
+            value={listPrefs.density}
+            onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}
+            ><option value="comfortable">Comfortable</option><option value="compact">Compact</option
+            ></select
+          ></label
+        >
       </div>
       {#if completedSearchItems.length === 0}
         <div class="empty-state small">
-          <p>{completedSearch.trim() ? 'No completed tasks match this search' : 'No completed tasks yet'}</p>
+          <p>
+            {completedSearch.trim()
+              ? 'No completed tasks match this search'
+              : 'No completed tasks yet'}
+          </p>
         </div>
       {:else}
         <div class="flat-list density-{listPrefs.density}">
@@ -302,15 +369,21 @@
               <div class="trash-main">
                 <strong>{node.title || 'Untitled'}</strong>
                 <span>{nodeStore.getKindLabel(node)}</span>
-                {#if node.deletedAt}<span>Deleted {new Date(node.deletedAt).toLocaleString()}</span>{/if}
-                <span>{node.parentId ? `Original parent: ${node.parentId.slice(0, 8)}...` : 'Root item'}</span>
+                {#if node.deletedAt}<span>Deleted {new Date(node.deletedAt).toLocaleString()}</span
+                  >{/if}
+                <span
+                  >{node.parentId
+                    ? `Original parent: ${node.parentId.slice(0, 8)}...`
+                    : 'Root item'}</span
+                >
               </div>
               <div class="trash-actions">
                 {#if validRestoreTargets(node).length > 0}
                   <select
                     aria-label="Restore destination"
                     value={trashDestinations.get(node.id) ?? ''}
-                    onchange={(e) => setTrashDestination(node.id, (e.target as HTMLSelectElement).value)}
+                    onchange={(e) =>
+                      setTrashDestination(node.id, (e.target as HTMLSelectElement).value)}
                   >
                     <option value="">Original parent</option>
                     {#each validRestoreTargets(node) as target (target.id)}
@@ -362,21 +435,61 @@
       <div class="tag-manager">
         <input placeholder="New tag" bind:value={newTagName} />
         <input type="color" bind:value={newTagColor} />
-        <button onclick={async () => { await nodeStore.createTag(newTagName, newTagColor); newTagName = ''; }}>Create Tag</button>
+        <button
+          onclick={async () => {
+            await nodeStore.createTag(newTagName, newTagColor);
+            newTagName = '';
+          }}>Create Tag</button
+        >
         {#each nodeStore.tags as tag (tag.id)}
           <div class="tag-edit">
             <span style={`background: ${tag.color ?? '#64748B'}`}></span>
-            <input value={tag.name} onchange={(event) => nodeStore.renameTag(tag.id, (event.target as HTMLInputElement).value, tag.color)} />
-            <input type="color" value={tag.color ?? '#64748B'} onchange={(event) => nodeStore.renameTag(tag.id, tag.name, (event.target as HTMLInputElement).value)} />
+            <input
+              value={tag.name}
+              onchange={(event) =>
+                nodeStore.renameTag(tag.id, (event.target as HTMLInputElement).value, tag.color)}
+            />
+            <input
+              type="color"
+              value={tag.color ?? '#64748B'}
+              onchange={(event) =>
+                nodeStore.renameTag(tag.id, tag.name, (event.target as HTMLInputElement).value)}
+            />
             <button onclick={() => nodeStore.setSelectedTag(tag.id)}>Open</button>
-            <button class="danger-action" onclick={() => nodeStore.deleteTag(tag.id)}>Delete</button>
+            <button class="danger-action" onclick={() => nodeStore.deleteTag(tag.id)}>Delete</button
+            >
           </div>
         {/each}
       </div>
       <div class="list-controls">
-        <label>Sort <select value={listPrefs.sort} onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}><option value="manual">Manual</option><option value="title">Title</option><option value="created">Created</option><option value="updated">Updated</option><option value="due">Due date</option><option value="priority">Priority</option></select></label>
-        <label>Group <select value={listPrefs.group} onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}><option value="none">None</option><option value="workspace">Workspace</option><option value="group">Group/Subgroup</option><option value="due">Due date</option><option value="priority">Priority</option></select></label>
-        <label>Density <select value={listPrefs.density} onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+        <label
+          >Sort <select
+            value={listPrefs.sort}
+            onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}
+            ><option value="manual">Manual</option><option value="title">Title</option><option
+              value="created">Created</option
+            ><option value="updated">Updated</option><option value="due">Due date</option><option
+              value="priority">Priority</option
+            ></select
+          ></label
+        >
+        <label
+          >Group <select
+            value={listPrefs.group}
+            onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}
+            ><option value="none">None</option><option value="workspace">Workspace</option><option
+              value="group">Group/Subgroup</option
+            ><option value="due">Due date</option><option value="priority">Priority</option></select
+          ></label
+        >
+        <label
+          >Density <select
+            value={listPrefs.density}
+            onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}
+            ><option value="comfortable">Comfortable</option><option value="compact">Compact</option
+            ></select
+          ></label
+        >
       </div>
       {#if tagItems.length === 0}
         <div class="empty-state small"><p>No tasks with this tag</p></div>
@@ -390,7 +503,13 @@
             </button>
             {#if !collapsedSections.has(`tag:${group.key}`)}
               {#each group.items as item (item.node.id)}
-                <TreeNode node={item.node} depth={0} isSelected={nodeStore.selectedId === item.node.id} isEditing={nodeStore.editingId === item.node.id} flat />
+                <TreeNode
+                  node={item.node}
+                  depth={0}
+                  isSelected={nodeStore.selectedId === item.node.id}
+                  isEditing={nodeStore.editingId === item.node.id}
+                  flat
+                />
                 <div class="projection-meta">{pathTitle(item.path.slice(0, -1)) || 'No path'}</div>
               {/each}
             {/if}
@@ -404,22 +523,112 @@
         <h2 class="view-title">Filter Preview</h2>
       </div>
       <div class="filter-builder">
-        <label>Text <input value={nodeStore.filterDraft.text ?? ''} oninput={(e) => nodeStore.setFilterDraft({ ...nodeStore.filterDraft, text: (e.target as HTMLInputElement).value })} /></label>
-        <label>Priority <select value={nodeStore.filterDraft.priority ?? ''} onchange={(e) => nodeStore.setFilterDraft({ ...nodeStore.filterDraft, priority: Number((e.target as HTMLSelectElement).value) || null })}><option value="">Any</option><option value="1">P1</option><option value="2">P2</option><option value="3">P3</option><option value="4">P4</option></select></label>
-        <label>Tag <select value={nodeStore.filterDraft.tagIds?.[0] ?? ''} onchange={(e) => { const value = (e.target as HTMLSelectElement).value; nodeStore.setFilterDraft({ ...nodeStore.filterDraft, tagIds: value ? [value] : [] }); }}><option value="">Any</option>{#each nodeStore.tags as tag (tag.id)}<option value={tag.id}>{tag.name}</option>{/each}</select></label>
-        <label>Due <select value={nodeStore.filterDraft.dueState ?? ''} onchange={(e) => nodeStore.setFilterDraft({ ...nodeStore.filterDraft, dueState: ((e.target as HTMLSelectElement).value || undefined) as never })}><option value="">Any</option><option value="none">No due date</option><option value="due">Has due date</option><option value="overdue">Overdue</option><option value="today">Today</option><option value="upcoming">Next 7 Days</option></select></label>
+        <label
+          >Text <input
+            value={nodeStore.filterDraft.text ?? ''}
+            oninput={(e) =>
+              nodeStore.setFilterDraft({
+                ...nodeStore.filterDraft,
+                text: (e.target as HTMLInputElement).value,
+              })}
+          /></label
+        >
+        <label
+          >Priority <select
+            value={nodeStore.filterDraft.priority ?? ''}
+            onchange={(e) =>
+              nodeStore.setFilterDraft({
+                ...nodeStore.filterDraft,
+                priority: Number((e.target as HTMLSelectElement).value) || null,
+              })}
+            ><option value="">Any</option><option value="1">P1</option><option value="2">P2</option
+            ><option value="3">P3</option><option value="4">P4</option></select
+          ></label
+        >
+        <label
+          >Tag <select
+            value={nodeStore.filterDraft.tagIds?.[0] ?? ''}
+            onchange={(e) => {
+              const value = (e.target as HTMLSelectElement).value;
+              nodeStore.setFilterDraft({ ...nodeStore.filterDraft, tagIds: value ? [value] : [] });
+            }}
+            ><option value="">Any</option>{#each nodeStore.tags as tag (tag.id)}<option
+                value={tag.id}>{tag.name}</option
+              >{/each}</select
+          ></label
+        >
+        <label
+          >Due <select
+            value={nodeStore.filterDraft.dueState ?? ''}
+            onchange={(e) =>
+              nodeStore.setFilterDraft({
+                ...nodeStore.filterDraft,
+                dueState: ((e.target as HTMLSelectElement).value || undefined) as never,
+              })}
+            ><option value="">Any</option><option value="none">No due date</option><option
+              value="due">Has due date</option
+            ><option value="overdue">Overdue</option><option value="today">Today</option><option
+              value="upcoming">Next 7 Days</option
+            ></select
+          ></label
+        >
         <label>Save <input placeholder="Filter name" bind:value={saveFilterName} /></label>
         <button onclick={saveCurrentFilter}>Save Filter</button>
-        <label>Saved <select value={savedFilterStore.selectedId ?? ''} onchange={(e) => savedFilterStore.select((e.target as HTMLSelectElement).value || null)}><option value="">Choose saved filter</option>{#each savedFilterStore.filters as filter (filter.id)}<option value={filter.id}>{filter.name}</option>{/each}</select></label>
+        <label
+          >Saved <select
+            value={savedFilterStore.selectedId ?? ''}
+            onchange={(e) => savedFilterStore.select((e.target as HTMLSelectElement).value || null)}
+            ><option value="">Choose saved filter</option
+            >{#each savedFilterStore.filters as filter (filter.id)}<option value={filter.id}
+                >{filter.name}</option
+              >{/each}</select
+          ></label
+        >
         {#if savedFilterStore.selectedId}
-          <button onclick={() => savedFilterStore.update(savedFilterStore.selectedId as string, { definition: nodeStore.filterDraft })}>Update Saved</button>
-          <button class="danger-action" onclick={() => savedFilterStore.delete(savedFilterStore.selectedId as string)}>Delete Saved</button>
+          <button
+            onclick={() =>
+              savedFilterStore.update(savedFilterStore.selectedId as string, {
+                definition: nodeStore.filterDraft,
+              })}>Update Saved</button
+          >
+          <button
+            class="danger-action"
+            onclick={() => savedFilterStore.delete(savedFilterStore.selectedId as string)}
+            >Delete Saved</button
+          >
         {/if}
       </div>
       <div class="list-controls">
-        <label>Sort <select value={listPrefs.sort} onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}><option value="manual">Manual</option><option value="title">Title</option><option value="created">Created</option><option value="updated">Updated</option><option value="due">Due date</option><option value="priority">Priority</option></select></label>
-        <label>Group <select value={listPrefs.group} onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}><option value="none">None</option><option value="workspace">Workspace</option><option value="group">Group/Subgroup</option><option value="due">Due date</option><option value="priority">Priority</option><option value="tag">Tag</option></select></label>
-        <label>Density <select value={listPrefs.density} onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+        <label
+          >Sort <select
+            value={listPrefs.sort}
+            onchange={(e) => updateSort((e.target as HTMLSelectElement).value)}
+            ><option value="manual">Manual</option><option value="title">Title</option><option
+              value="created">Created</option
+            ><option value="updated">Updated</option><option value="due">Due date</option><option
+              value="priority">Priority</option
+            ></select
+          ></label
+        >
+        <label
+          >Group <select
+            value={listPrefs.group}
+            onchange={(e) => updateGroup((e.target as HTMLSelectElement).value)}
+            ><option value="none">None</option><option value="workspace">Workspace</option><option
+              value="group">Group/Subgroup</option
+            ><option value="due">Due date</option><option value="priority">Priority</option><option
+              value="tag">Tag</option
+            ></select
+          ></label
+        >
+        <label
+          >Density <select
+            value={listPrefs.density}
+            onchange={(e) => updateDensity((e.target as HTMLSelectElement).value)}
+            ><option value="comfortable">Comfortable</option><option value="compact">Compact</option
+            ></select
+          ></label
+        >
       </div>
       {#if filteredItems.length === 0}
         <div class="empty-state small"><p>No tasks match this filter</p></div>
@@ -433,7 +642,13 @@
             </button>
             {#if !collapsedSections.has(`filter:${group.key}`)}
               {#each group.items as item (item.node.id)}
-                <TreeNode node={item.node} depth={0} isSelected={nodeStore.selectedId === item.node.id} isEditing={nodeStore.editingId === item.node.id} flat />
+                <TreeNode
+                  node={item.node}
+                  depth={0}
+                  isSelected={nodeStore.selectedId === item.node.id}
+                  isEditing={nodeStore.editingId === item.node.id}
+                  flat
+                />
                 <div class="projection-meta">{pathTitle(item.path.slice(0, -1)) || 'No path'}</div>
               {/each}
             {/if}
@@ -598,7 +813,6 @@
           />
         {/each}
       {/if}
-
     </div>
   {/if}
 </div>

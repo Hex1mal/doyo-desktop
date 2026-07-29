@@ -8,7 +8,7 @@ pub fn run_migrations(db: &Database) -> crate::error::Result<()> {
             version INTEGER PRIMARY KEY NOT NULL,
             applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
             description TEXT
-        );"
+        );",
     )?;
 
     let current_version: i32 = conn

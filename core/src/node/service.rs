@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use crate::activity::ActivityRepository;
 use crate::db::Database;
 use crate::error::{Error, Result};
+use crate::node::handler;
 use crate::node::model::*;
 use crate::node::repository::NodeRepository;
-use crate::node::handler;
-use crate::activity::ActivityRepository;
-use crate::undo::{UndoStack, UndoOp, UndoAction};
+use crate::undo::{UndoAction, UndoOp, UndoStack};
+use std::sync::Arc;
 
 pub struct NodeService {
     repo: NodeRepository,
@@ -40,7 +40,8 @@ impl NodeService {
                 Some(NodeType::Workspace) | Some(NodeType::Group) => {}
                 Some(_) => {
                     return Err(Error::Validation(
-                        "Group/subgroup can only be created inside a workspace, group, or subgroup".into(),
+                        "Group/subgroup can only be created inside a workspace, group, or subgroup"
+                            .into(),
                     ));
                 }
                 None => {
@@ -79,7 +80,11 @@ impl NodeService {
         h.validate_properties(&input.properties)?;
 
         let node = self.repo.create(&input)?;
-        self.activity_repo.log(&node.id, "created", &serde_json::json!({"title": &node.title}))?;
+        self.activity_repo.log(
+            &node.id,
+            "created",
+            &serde_json::json!({"title": &node.title}),
+        )?;
         self.undo_stack.push_create(node.clone());
         Ok(node)
     }
@@ -98,7 +103,8 @@ impl NodeService {
             handler::get_handler(target_type).validate_properties(props)?;
         }
         let node = self.repo.update(id, &changes)?;
-        self.activity_repo.log(id, "updated", &serde_json::to_value(&changes)?)?;
+        self.activity_repo
+            .log(id, "updated", &serde_json::to_value(&changes)?)?;
         self.undo_stack.push_update(id.to_string(), before);
         Ok(node)
     }
@@ -110,7 +116,8 @@ impl NodeService {
             self.repo.get(id)?
         };
         if !permanent {
-            self.activity_repo.log(id, "deleted", &serde_json::json!({"title": &node.title}))?;
+            self.activity_repo
+                .log(id, "deleted", &serde_json::json!({"title": &node.title}))?;
         }
         if permanent {
             self.repo.hard_delete(id)?;
@@ -147,9 +154,13 @@ impl NodeService {
         }
 
         let restored = self.repo.restore_subtree(id, destination_parent_id)?;
-        self.activity_repo.log(id, "restored", &serde_json::json!({
-            "destinationParentId": destination_parent_id
-        }))?;
+        self.activity_repo.log(
+            id,
+            "restored",
+            &serde_json::json!({
+                "destinationParentId": destination_parent_id
+            }),
+        )?;
         Ok(restored)
     }
 
@@ -159,30 +170,48 @@ impl NodeService {
 
     pub fn duplicate(&mut self, id: &str) -> Result<Node> {
         let node = self.repo.duplicate(id)?;
-        self.activity_repo.log(&node.id, "created", &serde_json::json!({"title": &node.title, "duplicatedFrom": id}))?;
+        self.activity_repo.log(
+            &node.id,
+            "created",
+            &serde_json::json!({"title": &node.title, "duplicatedFrom": id}),
+        )?;
         self.undo_stack.push_create(node.clone());
         Ok(node)
     }
 
-    pub fn move_node(&mut self, id: &str, new_parent_id: Option<&str>, position: f64) -> Result<()> {
+    pub fn move_node(
+        &mut self,
+        id: &str,
+        new_parent_id: Option<&str>,
+        position: f64,
+    ) -> Result<()> {
         let before = self.repo.get(id)?;
         self.validate_parent_rule(&before.node_type, new_parent_id)?;
         let before_parent_id = before.parent_id.clone();
         let before_position = before.position;
         self.repo.move_node(id, new_parent_id, position)?;
-        self.activity_repo.log(id, "moved", &serde_json::json!({
-            "fromParentId": before_parent_id,
-            "toParentId": new_parent_id,
-            "fromPosition": before_position,
-            "toPosition": position
-        }))?;
-        self.undo_stack.push_move(id.to_string(), before.parent_id.clone(), before.position);
+        self.activity_repo.log(
+            id,
+            "moved",
+            &serde_json::json!({
+                "fromParentId": before_parent_id,
+                "toParentId": new_parent_id,
+                "fromPosition": before_position,
+                "toPosition": position
+            }),
+        )?;
+        self.undo_stack
+            .push_move(id.to_string(), before.parent_id.clone(), before.position);
         Ok(())
     }
 
     pub fn reorder_children(&mut self, parent_id: &str, child_ids: &[String]) -> Result<()> {
         self.repo.reorder_children(parent_id, child_ids)?;
-        self.activity_repo.log(parent_id, "reordered", &serde_json::json!({"childIds": child_ids}))?;
+        self.activity_repo.log(
+            parent_id,
+            "reordered",
+            &serde_json::json!({"childIds": child_ids}),
+        )?;
         Ok(())
     }
 
@@ -202,7 +231,11 @@ impl NodeService {
         self.repo.get_full_tree(root_id)
     }
 
-    pub fn set_due_date(&mut self, id: &str, due_date: Option<chrono::DateTime<chrono::Utc>>) -> Result<Node> {
+    pub fn set_due_date(
+        &mut self,
+        id: &str,
+        due_date: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Node> {
         let mut node = self.repo.get(id)?;
         node.properties.due_date = due_date;
         let props_str = serde_json::to_string(&node.properties)?;
@@ -212,11 +245,19 @@ impl NodeService {
             "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
             rusqlite::params![&props_str, &now, id],
         )?;
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", rusqlite::params![id], |row| {
-            Ok(super::repository::map_node(row))
-        }).map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
+        let node = conn
+            .query_row(
+                "SELECT * FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| Ok(super::repository::map_node(row)),
+            )
+            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
         drop(conn);
-        self.activity_repo.log(id, "updated", &serde_json::json!({"dueDate": node.properties.due_date}))?;
+        self.activity_repo.log(
+            id,
+            "updated",
+            &serde_json::json!({"dueDate": node.properties.due_date}),
+        )?;
         Ok(node)
     }
 
@@ -233,18 +274,25 @@ impl NodeService {
             "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
             rusqlite::params![&props_str, &now, id],
         )?;
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", rusqlite::params![id], |row| {
-            Ok(super::repository::map_node(row))
-        }).map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
+        let node = conn
+            .query_row(
+                "SELECT * FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| Ok(super::repository::map_node(row)),
+            )
+            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
         drop(conn);
-        self.activity_repo.log(id, "updated", &serde_json::json!({"priority": priority}))?;
+        self.activity_repo
+            .log(id, "updated", &serde_json::json!({"priority": priority}))?;
         Ok(node)
     }
 
     pub fn toggle_complete(&mut self, id: &str) -> Result<Node> {
         let before = self.repo.get(id)?;
         if before.node_type != NodeType::Task {
-            return Err(Error::Validation("Only tasks and subtasks can be completed".into()));
+            return Err(Error::Validation(
+                "Only tasks and subtasks can be completed".into(),
+            ));
         }
         let conn = self.repo.db.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
@@ -266,12 +314,20 @@ impl NodeService {
             )?;
         }
 
-        let node = conn.query_row("SELECT * FROM nodes WHERE id = ?1", rusqlite::params![id], |row| {
-            Ok(super::repository::map_node(row))
-        }).map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
+        let node = conn
+            .query_row(
+                "SELECT * FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| Ok(super::repository::map_node(row)),
+            )
+            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
 
         drop(conn);
-        self.activity_repo.log(id, "completed", &serde_json::json!({"isCompleted": node.is_completed}))?;
+        self.activity_repo.log(
+            id,
+            "completed",
+            &serde_json::json!({"isCompleted": node.is_completed}),
+        )?;
         self.undo_stack.push_update(id.to_string(), before);
         Ok(node)
     }
@@ -283,13 +339,19 @@ impl NodeService {
     pub fn set_completion(&mut self, id: &str, completed: bool, cascade: bool) -> Result<Node> {
         let before = self.repo.get(id)?;
         if before.node_type != NodeType::Task {
-            return Err(Error::Validation("Only tasks and subtasks can be completed".into()));
+            return Err(Error::Validation(
+                "Only tasks and subtasks can be completed".into(),
+            ));
         }
         let node = self.repo.set_completion(id, completed, cascade)?;
-        self.activity_repo.log(id, "completed", &serde_json::json!({
-            "isCompleted": node.is_completed,
-            "cascade": cascade
-        }))?;
+        self.activity_repo.log(
+            id,
+            "completed",
+            &serde_json::json!({
+                "isCompleted": node.is_completed,
+                "cascade": cascade
+            }),
+        )?;
         self.undo_stack.push_update(id.to_string(), before);
         Ok(node)
     }
@@ -315,8 +377,7 @@ impl NodeService {
     }
 
     pub fn undo(&mut self) -> Result<String> {
-        let action = self.undo_stack.pop_undo()
-            .ok_or(Error::NothingToUndo)?;
+        let action = self.undo_stack.pop_undo().ok_or(Error::NothingToUndo)?;
 
         let description = action.description.clone();
 
@@ -369,8 +430,7 @@ impl NodeService {
     }
 
     pub fn redo(&mut self) -> Result<String> {
-        let action = self.undo_stack.pop_redo()
-            .ok_or(Error::NothingToRedo)?;
+        let action = self.undo_stack.pop_redo().ok_or(Error::NothingToRedo)?;
 
         let description = action.description.clone();
 
@@ -421,6 +481,10 @@ impl NodeService {
         Ok(description)
     }
 
-    pub fn can_undo(&self) -> bool { self.undo_stack.can_undo() }
-    pub fn can_redo(&self) -> bool { self.undo_stack.can_redo() }
+    pub fn can_undo(&self) -> bool {
+        self.undo_stack.can_undo()
+    }
+    pub fn can_redo(&self) -> bool {
+        self.undo_stack.can_redo()
+    }
 }

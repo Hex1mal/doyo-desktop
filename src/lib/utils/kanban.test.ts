@@ -53,8 +53,20 @@ describe('kanban utilities', () => {
     const study: Tag = { id: 'tag-study', name: 'Study', color: null, createdAt: '' };
     const high = item(node({ id: 'high', properties: { priority: 1 } }), [study]);
     const none = item(node({ id: 'none', properties: {} }), []);
-    expect(groupKanbanItems(kanbanColumns('priority', [high, none], { statusColumns: [], tags: [], nodes: [] }), 'priority', [high, none]).find((group) => group.key === '1')?.items).toHaveLength(1);
-    expect(groupKanbanItems(kanbanColumns('tag', [high, none], { statusColumns: [], tags: [study], nodes: [] }), 'tag', [high, none]).find((group) => group.key === 'tag-study')?.items).toHaveLength(1);
+    expect(
+      groupKanbanItems(
+        kanbanColumns('priority', [high, none], { statusColumns: [], tags: [], nodes: [] }),
+        'priority',
+        [high, none],
+      ).find((group) => group.key === '1')?.items,
+    ).toHaveLength(1);
+    expect(
+      groupKanbanItems(
+        kanbanColumns('tag', [high, none], { statusColumns: [], tags: [study], nodes: [] }),
+        'tag',
+        [high, none],
+      ).find((group) => group.key === 'tag-study')?.items,
+    ).toHaveLength(1);
   });
 
   it('merges status without losing other custom values', () => {

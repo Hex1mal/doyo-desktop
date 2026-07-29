@@ -60,4 +60,3 @@ describe('reminder utilities', () => {
     expect(dueCountdownReminders([countdown({ archived: true })], now)).toHaveLength(0);
   });
 });
-

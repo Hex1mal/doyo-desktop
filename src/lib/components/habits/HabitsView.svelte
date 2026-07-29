@@ -105,11 +105,19 @@
   <div class="summary-strip">
     <div><span>Active</span><strong>{habitStore.summary.activeCount}</strong></div>
     <div><span>Today</span><strong>{habitStore.summary.completedToday}</strong></div>
-    <div><span>Rate</span><strong>{Math.round(habitStore.summary.completionRate * 100)}%</strong></div>
+    <div>
+      <span>Rate</span><strong>{Math.round(habitStore.summary.completionRate * 100)}%</strong>
+    </div>
     <div><span>Best streak</span><strong>{habitStore.summary.bestStreak}</strong></div>
   </div>
 
-  <form class="habit-form" onsubmit={(event) => { event.preventDefault(); createHabit(); }}>
+  <form
+    class="habit-form"
+    onsubmit={(event) => {
+      event.preventDefault();
+      createHabit();
+    }}
+  >
     <input aria-label="Habit title" placeholder="New habit" bind:value={title} required />
     <select bind:value={frequency} aria-label="Frequency">
       <option value="daily">Daily</option>
@@ -122,8 +130,8 @@
             type="button"
             class:day-active={days.includes(i)}
             onclick={() => toggleDay(i)}
-            title={day}
-          >{day}</button>
+            title={day}>{day}</button
+          >
         {/each}
       </div>
     {/if}
@@ -147,17 +155,55 @@
             <input
               aria-label="Habit title"
               value={habit.title}
-              onchange={(event) => habitStore.update(habit.id, { title: (event.target as HTMLInputElement).value })}
+              onchange={(event) =>
+                habitStore.update(habit.id, { title: (event.target as HTMLInputElement).value })}
             />
             <div class="edit-grid">
-              <select value={habit.frequency} onchange={(event) => habitStore.update(habit.id, { frequency: (event.target as HTMLSelectElement).value as HabitFrequency })}>
+              <select
+                value={habit.frequency}
+                onchange={(event) =>
+                  habitStore.update(habit.id, {
+                    frequency: (event.target as HTMLSelectElement).value as HabitFrequency,
+                  })}
+              >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
               </select>
-              <input aria-label="Goal" type="number" min="0.1" step="0.1" value={habit.goal} onchange={(event) => habitStore.update(habit.id, { goal: Number((event.target as HTMLInputElement).value) || 1 })} />
-              <input aria-label="Goal unit" value={habit.goalUnit} onchange={(event) => habitStore.update(habit.id, { goalUnit: (event.target as HTMLInputElement).value })} />
-              <input aria-label="Reminder" type="time" value={habit.reminderTime ?? ''} onchange={(event) => habitStore.update(habit.id, { reminderTime: (event.target as HTMLInputElement).value || null })} />
-              <input aria-label="Color" type="color" value={habit.color ?? '#2563EB'} onchange={(event) => habitStore.update(habit.id, { color: (event.target as HTMLInputElement).value })} />
+              <input
+                aria-label="Goal"
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={habit.goal}
+                onchange={(event) =>
+                  habitStore.update(habit.id, {
+                    goal: Number((event.target as HTMLInputElement).value) || 1,
+                  })}
+              />
+              <input
+                aria-label="Goal unit"
+                value={habit.goalUnit}
+                onchange={(event) =>
+                  habitStore.update(habit.id, {
+                    goalUnit: (event.target as HTMLInputElement).value,
+                  })}
+              />
+              <input
+                aria-label="Reminder"
+                type="time"
+                value={habit.reminderTime ?? ''}
+                onchange={(event) =>
+                  habitStore.update(habit.id, {
+                    reminderTime: (event.target as HTMLInputElement).value || null,
+                  })}
+              />
+              <input
+                aria-label="Color"
+                type="color"
+                value={habit.color ?? '#2563EB'}
+                onchange={(event) =>
+                  habitStore.update(habit.id, { color: (event.target as HTMLInputElement).value })}
+              />
             </div>
             {#if habit.frequency === 'weekly'}
               <div class="day-selector inline">
@@ -166,8 +212,8 @@
                     type="button"
                     class:day-active={habit.days.includes(i)}
                     onclick={() => toggleHabitDay(habit.id, habit.days, i)}
-                    title={day}
-                  >{day.slice(0, 1)}</button>
+                    title={day}>{day.slice(0, 1)}</button
+                  >
                 {/each}
               </div>
             {/if}
@@ -184,20 +230,34 @@
                 class:partial={log?.status === 'partial'}
                 class:skipped={log?.status === 'skipped'}
                 title={`${key}: ${log?.status ?? 'open'}`}
-                onclick={() => habitStore.setLog(habit.id, log?.status === 'completed' ? 'skipped' : 'completed', key)}
+                onclick={() =>
+                  habitStore.setLog(
+                    habit.id,
+                    log?.status === 'completed' ? 'skipped' : 'completed',
+                    key,
+                  )}
               >
                 {date.getDate()}
               </button>
             {/each}
           </div>
           <div class="log-actions" aria-label="Today log">
-            <button class:active={statusClass(habit.id) === 'completed'} onclick={() => habitStore.setLog(habit.id, 'completed')}>
+            <button
+              class:active={statusClass(habit.id) === 'completed'}
+              onclick={() => habitStore.setLog(habit.id, 'completed')}
+            >
               Done
             </button>
-            <button class:active={statusClass(habit.id) === 'partial'} onclick={() => habitStore.setLog(habit.id, 'partial', localDateKey(), habit.goal / 2)}>
+            <button
+              class:active={statusClass(habit.id) === 'partial'}
+              onclick={() => habitStore.setLog(habit.id, 'partial', localDateKey(), habit.goal / 2)}
+            >
               Partial
             </button>
-            <button class:active={statusClass(habit.id) === 'skipped'} onclick={() => habitStore.setLog(habit.id, 'skipped', localDateKey(), 0)}>
+            <button
+              class:active={statusClass(habit.id) === 'skipped'}
+              onclick={() => habitStore.setLog(habit.id, 'skipped', localDateKey(), 0)}
+            >
               Skip
             </button>
             <button onclick={() => habitStore.clearLog(habit.id)}>Clear</button>

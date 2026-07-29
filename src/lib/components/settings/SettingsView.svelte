@@ -24,7 +24,12 @@
   let activePanel = $state<SettingsPanel>('general');
   let notificationPrefs = $state({ pomodoro: true, habits: true, countdowns: true });
   let datePrefs = $state({ timezone: 'local', hourCycle: '24', dateFormat: 'yyyy-mm-dd' });
-  let appearancePrefs = $state({ themeMode: 'light', fontScale: 100, reducedMotion: false, accentColor: '#2563eb' });
+  let appearancePrefs = $state({
+    themeMode: 'light',
+    fontScale: 100,
+    reducedMotion: false,
+    accentColor: '#2563eb',
+  });
   let backupPrefs = $state({ createSafetyBackupBeforeRestore: true });
   let importJsonText = $state('');
   let exportPreview = $state('');
@@ -50,7 +55,10 @@
   }
 
   function applyAppearance() {
-    document.documentElement.style.setProperty('--user-font-scale', String(appearancePrefs.fontScale / 100));
+    document.documentElement.style.setProperty(
+      '--user-font-scale',
+      String(appearancePrefs.fontScale / 100),
+    );
     document.documentElement.style.setProperty('--accent', appearancePrefs.accentColor);
     document.documentElement.toggleAttribute('data-reduced-motion', appearancePrefs.reducedMotion);
   }
@@ -65,12 +73,17 @@
     await saveSetting('datetime.preferences.v1', datePrefs);
   }
 
-  async function setAppearance(key: keyof typeof appearancePrefs, value: string | number | boolean) {
+  async function setAppearance(
+    key: keyof typeof appearancePrefs,
+    value: string | number | boolean,
+  ) {
     appearancePrefs = { ...appearancePrefs, [key]: value };
     if (key === 'themeMode') {
       const mode = String(value);
       if (mode === 'system') {
-        uiStore.setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        uiStore.setTheme(
+          window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+        );
       } else {
         uiStore.setTheme(mode as 'light' | 'dark');
       }
@@ -95,7 +108,8 @@
       toast.error('Paste JSON to import first');
       return;
     }
-    if (!window.confirm('Import these nodes into the root? Existing data will be preserved.')) return;
+    if (!window.confirm('Import these nodes into the root? Existing data will be preserved.'))
+      return;
     try {
       const ids = await api.importJson(text, null);
       await nodeStore.load();
@@ -134,15 +148,25 @@
     <h2>{panels.find((panel) => panel.id === activePanel)?.title}</h2>
 
     {#if activePanel === 'general'}
-      <label>Completion policy
-        <select value={uiStore.completionPolicy} onchange={(event) => uiStore.setCompletionPolicy((event.target as HTMLSelectElement).value as never)}>
+      <label
+        >Completion policy
+        <select
+          value={uiStore.completionPolicy}
+          onchange={(event) =>
+            uiStore.setCompletionPolicy((event.target as HTMLSelectElement).value as never)}
+        >
           <option value="individual">Individual</option>
           <option value="ask">Ask</option>
           <option value="cascade">Cascade</option>
         </select>
       </label>
-      <label>Start module
-        <select value={uiStore.activeModule} onchange={(event) => uiStore.setActiveModule((event.target as HTMLSelectElement).value as never)}>
+      <label
+        >Start module
+        <select
+          value={uiStore.activeModule}
+          onchange={(event) =>
+            uiStore.setActiveModule((event.target as HTMLSelectElement).value as never)}
+        >
           <option value="workspaces">Workspaces</option>
           <option value="today">Today</option>
           <option value="upcoming">Next 7 Days</option>
@@ -158,94 +182,195 @@
       </label>
     {:else if activePanel === 'features'}
       <div class="control-grid">
-        <label>Sidebar visible
-          <input type="checkbox" checked={uiStore.sidebarVisible} onchange={(event) => uiStore.setSidebarVisible((event.target as HTMLInputElement).checked)} />
+        <label
+          >Sidebar visible
+          <input
+            type="checkbox"
+            checked={uiStore.sidebarVisible}
+            onchange={(event) =>
+              uiStore.setSidebarVisible((event.target as HTMLInputElement).checked)}
+          />
         </label>
-        <label>Inspector visible
-          <input type="checkbox" checked={uiStore.inspectorVisible} onchange={(event) => uiStore.setInspectorVisible((event.target as HTMLInputElement).checked)} />
+        <label
+          >Inspector visible
+          <input
+            type="checkbox"
+            checked={uiStore.inspectorVisible}
+            onchange={(event) =>
+              uiStore.setInspectorVisible((event.target as HTMLInputElement).checked)}
+          />
         </label>
-        <label>Focus mode
-          <input type="checkbox" checked={uiStore.focusMode} onchange={(event) => (event.target as HTMLInputElement).checked ? uiStore.toggleFocusMode() : uiStore.exitFocusMode()} />
+        <label
+          >Focus mode
+          <input
+            type="checkbox"
+            checked={uiStore.focusMode}
+            onchange={(event) =>
+              (event.target as HTMLInputElement).checked
+                ? uiStore.toggleFocusMode()
+                : uiStore.exitFocusMode()}
+          />
         </label>
       </div>
     {:else if activePanel === 'smartViews'}
       <div class="control-grid">
-        <label>Completed sort
-          <select value={uiStore.getListPrefs('completed').sort} onchange={(event) => uiStore.setListPrefs('completed', { sort: (event.target as HTMLSelectElement).value as never })}>
+        <label
+          >Completed sort
+          <select
+            value={uiStore.getListPrefs('completed').sort}
+            onchange={(event) =>
+              uiStore.setListPrefs('completed', {
+                sort: (event.target as HTMLSelectElement).value as never,
+              })}
+          >
             <option value="completed">Completion date</option>
             <option value="title">Title</option>
             <option value="priority">Priority</option>
             <option value="due">Due date</option>
           </select>
         </label>
-        <label>Completed grouping
-          <select value={uiStore.getListPrefs('completed').group} onchange={(event) => uiStore.setListPrefs('completed', { group: (event.target as HTMLSelectElement).value as never })}>
+        <label
+          >Completed grouping
+          <select
+            value={uiStore.getListPrefs('completed').group}
+            onchange={(event) =>
+              uiStore.setListPrefs('completed', {
+                group: (event.target as HTMLSelectElement).value as never,
+              })}
+          >
             <option value="completionPeriod">Completion period</option>
             <option value="workspace">Workspace</option>
             <option value="priority">Priority</option>
             <option value="none">None</option>
           </select>
         </label>
-        <label>List density
-          <select value={uiStore.getListPrefs('completed').density} onchange={(event) => uiStore.setListPrefs('completed', { density: (event.target as HTMLSelectElement).value as never })}>
+        <label
+          >List density
+          <select
+            value={uiStore.getListPrefs('completed').density}
+            onchange={(event) =>
+              uiStore.setListPrefs('completed', {
+                density: (event.target as HTMLSelectElement).value as never,
+              })}
+          >
             <option value="comfortable">Comfortable</option>
             <option value="compact">Compact</option>
           </select>
         </label>
       </div>
-      <label>Calendar completed tasks
+      <label
+        >Calendar completed tasks
         <input
           type="checkbox"
           checked={uiStore.calendarPrefs.showCompleted}
-          onchange={(event) => uiStore.setCalendarPrefs({ showCompleted: (event.target as HTMLInputElement).checked })}
+          onchange={(event) =>
+            uiStore.setCalendarPrefs({ showCompleted: (event.target as HTMLInputElement).checked })}
         />
       </label>
-      <label>Kanban completed tasks
-        <input type="checkbox" checked={uiStore.kanbanPrefs.showCompleted} onchange={(event) => uiStore.setKanbanPrefs({ showCompleted: (event.target as HTMLInputElement).checked })} />
+      <label
+        >Kanban completed tasks
+        <input
+          type="checkbox"
+          checked={uiStore.kanbanPrefs.showCompleted}
+          onchange={(event) =>
+            uiStore.setKanbanPrefs({ showCompleted: (event.target as HTMLInputElement).checked })}
+        />
       </label>
-      <label>Timeline completed tasks
-        <input type="checkbox" checked={uiStore.timelinePrefs.showCompleted} onchange={(event) => uiStore.setTimelinePrefs({ showCompleted: (event.target as HTMLInputElement).checked })} />
+      <label
+        >Timeline completed tasks
+        <input
+          type="checkbox"
+          checked={uiStore.timelinePrefs.showCompleted}
+          onchange={(event) =>
+            uiStore.setTimelinePrefs({ showCompleted: (event.target as HTMLInputElement).checked })}
+        />
       </label>
     {:else if activePanel === 'notifications'}
-      <label>Pomodoro notifications
-        <input type="checkbox" checked={notificationPrefs.pomodoro} onchange={(event) => setNotification('pomodoro', (event.target as HTMLInputElement).checked)} />
+      <label
+        >Pomodoro notifications
+        <input
+          type="checkbox"
+          checked={notificationPrefs.pomodoro}
+          onchange={(event) =>
+            setNotification('pomodoro', (event.target as HTMLInputElement).checked)}
+        />
       </label>
-      <label>Habit reminders
-        <input type="checkbox" checked={notificationPrefs.habits} onchange={(event) => setNotification('habits', (event.target as HTMLInputElement).checked)} />
+      <label
+        >Habit reminders
+        <input
+          type="checkbox"
+          checked={notificationPrefs.habits}
+          onchange={(event) =>
+            setNotification('habits', (event.target as HTMLInputElement).checked)}
+        />
       </label>
-      <label>Countdown reminders
-        <input type="checkbox" checked={notificationPrefs.countdowns} onchange={(event) => setNotification('countdowns', (event.target as HTMLInputElement).checked)} />
+      <label
+        >Countdown reminders
+        <input
+          type="checkbox"
+          checked={notificationPrefs.countdowns}
+          onchange={(event) =>
+            setNotification('countdowns', (event.target as HTMLInputElement).checked)}
+        />
       </label>
     {:else if activePanel === 'dateTime'}
       <div class="control-grid">
-        <label>Timezone
-          <select value={datePrefs.timezone} onchange={(event) => setDatePref('timezone', (event.target as HTMLSelectElement).value)}>
+        <label
+          >Timezone
+          <select
+            value={datePrefs.timezone}
+            onchange={(event) => setDatePref('timezone', (event.target as HTMLSelectElement).value)}
+          >
             <option value="local">Local system timezone</option>
             <option value="UTC">UTC</option>
           </select>
         </label>
-        <label>First day of week
-          <select value={uiStore.calendarPrefs.firstDayOfWeek} onchange={(event) => uiStore.setCalendarPrefs({ firstDayOfWeek: Number((event.target as HTMLSelectElement).value) })}>
+        <label
+          >First day of week
+          <select
+            value={uiStore.calendarPrefs.firstDayOfWeek}
+            onchange={(event) =>
+              uiStore.setCalendarPrefs({
+                firstDayOfWeek: Number((event.target as HTMLSelectElement).value),
+              })}
+          >
             <option value="0">Sunday</option>
             <option value="1">Monday</option>
             <option value="6">Saturday</option>
           </select>
         </label>
-        <label>Time format
-          <select value={datePrefs.hourCycle} onchange={(event) => setDatePref('hourCycle', (event.target as HTMLSelectElement).value)}>
+        <label
+          >Time format
+          <select
+            value={datePrefs.hourCycle}
+            onchange={(event) =>
+              setDatePref('hourCycle', (event.target as HTMLSelectElement).value)}
+          >
             <option value="24">24-hour</option>
             <option value="12">12-hour</option>
           </select>
         </label>
-        <label>Date format
-          <select value={datePrefs.dateFormat} onchange={(event) => setDatePref('dateFormat', (event.target as HTMLSelectElement).value)}>
+        <label
+          >Date format
+          <select
+            value={datePrefs.dateFormat}
+            onchange={(event) =>
+              setDatePref('dateFormat', (event.target as HTMLSelectElement).value)}
+          >
             <option value="yyyy-mm-dd">YYYY-MM-DD</option>
             <option value="dd/mm/yyyy">DD/MM/YYYY</option>
             <option value="mm/dd/yyyy">MM/DD/YYYY</option>
           </select>
         </label>
-        <label>Default calendar view
-          <select value={uiStore.calendarPrefs.view} onchange={(event) => uiStore.setCalendarPrefs({ view: (event.target as HTMLSelectElement).value as never })}>
+        <label
+          >Default calendar view
+          <select
+            value={uiStore.calendarPrefs.view}
+            onchange={(event) =>
+              uiStore.setCalendarPrefs({
+                view: (event.target as HTMLSelectElement).value as never,
+              })}
+          >
             <option value="month">Month</option>
             <option value="week">Week</option>
             <option value="day">Day</option>
@@ -255,26 +380,62 @@
       </div>
     {:else if activePanel === 'appearance'}
       <div class="control-grid">
-        <label>Theme
-          <select value={appearancePrefs.themeMode} onchange={(event) => setAppearance('themeMode', (event.target as HTMLSelectElement).value)}>
+        <label
+          >Theme
+          <select
+            value={appearancePrefs.themeMode}
+            onchange={(event) =>
+              setAppearance('themeMode', (event.target as HTMLSelectElement).value)}
+          >
             <option value="light">Light</option>
             <option value="dark">Dark</option>
             <option value="system">System</option>
           </select>
         </label>
-        <label>Font scale
-          <input type="number" min="80" max="130" step="5" value={appearancePrefs.fontScale} onchange={(event) => setAppearance('fontScale', Number((event.target as HTMLInputElement).value))} />
+        <label
+          >Font scale
+          <input
+            type="number"
+            min="80"
+            max="130"
+            step="5"
+            value={appearancePrefs.fontScale}
+            onchange={(event) =>
+              setAppearance('fontScale', Number((event.target as HTMLInputElement).value))}
+          />
         </label>
-        <label>Accent color
-          <input type="color" value={appearancePrefs.accentColor} onchange={(event) => setAppearance('accentColor', (event.target as HTMLInputElement).value)} />
+        <label
+          >Accent color
+          <input
+            type="color"
+            value={appearancePrefs.accentColor}
+            onchange={(event) =>
+              setAppearance('accentColor', (event.target as HTMLInputElement).value)}
+          />
         </label>
-        <label>Reduced motion
-          <input type="checkbox" checked={appearancePrefs.reducedMotion} onchange={(event) => setAppearance('reducedMotion', (event.target as HTMLInputElement).checked)} />
+        <label
+          >Reduced motion
+          <input
+            type="checkbox"
+            checked={appearancePrefs.reducedMotion}
+            onchange={(event) =>
+              setAppearance('reducedMotion', (event.target as HTMLInputElement).checked)}
+          />
         </label>
       </div>
     {:else if activePanel === 'dataBackup'}
-      <label>Create safety backup before restore
-        <input type="checkbox" checked={backupPrefs.createSafetyBackupBeforeRestore} onchange={(event) => { backupPrefs = { createSafetyBackupBeforeRestore: (event.target as HTMLInputElement).checked }; saveSetting('backup.preferences.v1', backupPrefs); }} />
+      <label
+        >Create safety backup before restore
+        <input
+          type="checkbox"
+          checked={backupPrefs.createSafetyBackupBeforeRestore}
+          onchange={(event) => {
+            backupPrefs = {
+              createSafetyBackupBeforeRestore: (event.target as HTMLInputElement).checked,
+            };
+            saveSetting('backup.preferences.v1', backupPrefs);
+          }}
+        />
       </label>
       <div class="backup-actions">
         <button class="primary" onclick={() => settingsStore.createBackup()}>Create Backup</button>
@@ -297,11 +458,14 @@
       {#if exportPreview}
         <textarea rows="5" readonly value={exportPreview}></textarea>
       {/if}
-      <label>Import JSON
-        <textarea rows="7" bind:value={importJsonText} placeholder="Paste Doyo JSON export"></textarea>
+      <label
+        >Import JSON
+        <textarea rows="7" bind:value={importJsonText} placeholder="Paste Doyo JSON export"
+        ></textarea>
       </label>
       <button onclick={importFromText}>Import JSON</button>
-      <label>Markdown output directory
+      <label
+        >Markdown output directory
         <input bind:value={markdownOutputDir} placeholder="~/DoyoExport" />
       </label>
       <button onclick={exportMarkdown}>Export Markdown</button>
@@ -313,10 +477,12 @@
         <span>Ctrl+Enter</span><strong>Complete task</strong>
       </div>
     {:else if activePanel === 'privacy'}
-      <label>Local-only mode
+      <label
+        >Local-only mode
         <input type="checkbox" checked disabled />
       </label>
-      <label>Store notification sent markers locally
+      <label
+        >Store notification sent markers locally
         <input type="checkbox" checked disabled />
       </label>
     {:else if activePanel === 'advanced'}

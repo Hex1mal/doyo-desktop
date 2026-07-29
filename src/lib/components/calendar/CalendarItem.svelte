@@ -18,14 +18,12 @@
   let resizing = $state(false);
   let pointerDrag = $state(false);
   let suppressClick = false;
-  let press:
-    | {
-        pointerId: number;
-        startX: number;
-        startY: number;
-        payload: { type: 'task' | 'block'; id: string };
-      }
-    | null = null;
+  let press: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    payload: { type: 'task' | 'block'; id: string };
+  } | null = null;
 
   function selectTask(node: Node) {
     nodeStore.select(node.id);
@@ -45,7 +43,9 @@
   }
 
   function isInteractiveTarget(target: EventTarget | null) {
-    return target instanceof HTMLElement && Boolean(target.closest('button, input, select, textarea, a'));
+    return (
+      target instanceof HTMLElement && Boolean(target.closest('button, input, select, textarea, a'))
+    );
   }
 
   function beginPointerDrag(event: PointerEvent) {
@@ -187,7 +187,12 @@
     </button>
     <span class="item-title">{task.title || 'Untitled'}</span>
     {#if task.properties.dueDate}
-      <span class="time">{new Date(task.properties.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+      <span class="time"
+        >{new Date(task.properties.dueDate).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}</span
+      >
     {/if}
     {#if task.properties.priority && task.properties.priority < 4}
       <span class="priority">P{task.properties.priority}</span>
@@ -219,19 +224,28 @@
     </span>
     <span>{itemDurationMinutes(block)}m</span>
     <div class="block-actions">
-      <button title="Link selected task" onclick={() => calendarStore.linkSelectedTask(block.id)}>Link</button>
-      <button title="Unlink task" onclick={() => calendarStore.unlinkBlock(block.id)}>Unlink</button>
-      <button title="Shorten by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, -30)}>-30</button>
-      <button title="Extend by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, 30)}>+30</button>
-      <button title="Delete block" onclick={() => calendarStore.deleteBlock(block.id)}>Delete</button>
+      <button title="Link selected task" onclick={() => calendarStore.linkSelectedTask(block.id)}
+        >Link</button
+      >
+      <button title="Unlink task" onclick={() => calendarStore.unlinkBlock(block.id)}>Unlink</button
+      >
+      <button title="Shorten by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, -30)}
+        >-30</button
+      >
+      <button title="Extend by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, 30)}
+        >+30</button
+      >
+      <button title="Delete block" onclick={() => calendarStore.deleteBlock(block.id)}
+        >Delete</button
+      >
     </div>
     <button
       class="resize-handle"
       class:resizing
       title="Drag to resize"
       aria-label="Drag to resize time block"
-      onpointerdown={beginResize}
-    >↕</button>
+      onpointerdown={beginResize}>↕</button
+    >
   </div>
 {/if}
 

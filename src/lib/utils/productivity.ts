@@ -22,10 +22,15 @@ export function flowtimeBreakSuggestion(durationSeconds: number) {
   return 20;
 }
 
-export function countdownDelta(targetDate: string, mode: 'countdown' | 'countup', now = new Date()) {
+export function countdownDelta(
+  targetDate: string,
+  mode: 'countdown' | 'countup',
+  now = new Date(),
+) {
   const target = new Date(targetDate);
   if (Number.isNaN(target.getTime())) return { days: 0, label: 'Invalid date' };
-  const diff = mode === 'countup' ? now.getTime() - target.getTime() : target.getTime() - now.getTime();
+  const diff =
+    mode === 'countup' ? now.getTime() - target.getTime() : target.getTime() - now.getTime();
   const days = Math.floor(Math.abs(diff) / 86_400_000);
   if (mode === 'countup') return { days, label: `${days} days since` };
   return { days, label: diff < 0 ? `${days} days overdue` : `${days} days left` };
@@ -52,7 +57,11 @@ export function rangeStart(range: StatsRange, now = new Date()) {
   return start;
 }
 
-export function isWithinRange(dateValue: string | null | undefined, range: StatsRange, now = new Date()) {
+export function isWithinRange(
+  dateValue: string | null | undefined,
+  range: StatsRange,
+  now = new Date(),
+) {
   if (!dateValue) return false;
   const date = new Date(dateValue);
   if (Number.isNaN(date.getTime())) return false;

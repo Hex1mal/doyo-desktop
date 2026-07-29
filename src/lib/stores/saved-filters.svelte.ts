@@ -69,7 +69,9 @@ export const savedFilterStore = {
     try {
       const created = await savedFilterCreate({
         name: cleanName,
-        definition: normalizeFilterDefinition(nodeStore.filterDraft as unknown as Record<string, unknown>),
+        definition: normalizeFilterDefinition(
+          nodeStore.filterDraft as unknown as Record<string, unknown>,
+        ),
       });
       state.filters = [...state.filters, created].sort((a, b) => a.position - b.position);
       state.selectedId = created.id;

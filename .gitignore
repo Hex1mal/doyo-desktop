@@ -25,6 +25,18 @@ migration-backups/
 .env.*
 !.env.example
 *.local
+local.properties
+keystore.properties
+key.properties
+
+# Signing keys and certificates
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.asc
 
 # Logs and diagnostics
 *.log
@@ -44,6 +56,7 @@ screenshots/
 test-results/
 playwright-report/
 coverage/
+*.sarif
 
 # Editor and OS files
 .idea/

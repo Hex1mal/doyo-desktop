@@ -53,11 +53,7 @@ impl TimeBlockService {
         Self { db }
     }
 
-    pub fn list_between(
-        &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Result<Vec<TimeBlock>> {
+    pub fn list_between(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<TimeBlock>> {
         let conn = self.db.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT * FROM time_blocks
@@ -146,15 +142,19 @@ impl TimeBlockService {
 
     pub fn get(&self, id: &str) -> Result<TimeBlock> {
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM time_blocks WHERE id = ?1", params![id], |row| {
-            Ok(map_time_block(row))
-        })
+        conn.query_row(
+            "SELECT * FROM time_blocks WHERE id = ?1",
+            params![id],
+            |row| Ok(map_time_block(row)),
+        )
         .map_err(|_| Error::NotFound(format!("Time block not found: {}", id)))
     }
 
     fn validate_range(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
         if end <= start {
-            return Err(Error::Validation("Time block end must be after start".into()));
+            return Err(Error::Validation(
+                "Time block end must be after start".into(),
+            ));
         }
         Ok(())
     }
@@ -174,8 +174,10 @@ impl TimeBlockService {
         let Some((node_type, deleted_at)) = row else {
             return Err(Error::Validation("Linked task does not exist".into()));
         };
-        if NodeType::from_str(&node_type) != Some(NodeType::Task) || deleted_at.is_some() {
-            return Err(Error::Validation("Time block can only link to an active task".into()));
+        if NodeType::parse(&node_type) != Some(NodeType::Task) || deleted_at.is_some() {
+            return Err(Error::Validation(
+                "Time block can only link to an active task".into(),
+            ));
         }
         Ok(())
     }
@@ -184,8 +186,12 @@ impl TimeBlockService {
 fn map_time_block(row: &rusqlite::Row) -> TimeBlock {
     TimeBlock {
         id: row.get(row.as_ref().column_index("id").unwrap()).unwrap(),
-        task_id: row.get(row.as_ref().column_index("task_id").unwrap()).unwrap(),
-        title: row.get(row.as_ref().column_index("title").unwrap()).unwrap(),
+        task_id: row
+            .get(row.as_ref().column_index("task_id").unwrap())
+            .unwrap(),
+        title: row
+            .get(row.as_ref().column_index("title").unwrap())
+            .unwrap(),
         start_time: row
             .get::<_, String>(row.as_ref().column_index("start_time").unwrap())
             .unwrap()
@@ -200,7 +206,9 @@ fn map_time_block(row: &rusqlite::Row) -> TimeBlock {
             .get::<_, i32>(row.as_ref().column_index("all_day").unwrap())
             .unwrap()
             != 0,
-        notes: row.get(row.as_ref().column_index("notes").unwrap()).unwrap(),
+        notes: row
+            .get(row.as_ref().column_index("notes").unwrap())
+            .unwrap(),
         created_at: row
             .get::<_, String>(row.as_ref().column_index("created_at").unwrap())
             .unwrap()

@@ -61,9 +61,10 @@ Open Settings -> Data and Backup.
 
 Open Settings -> Import and Export.
 
-- JSON export/import preserves Doyo's structured data.
+- JSON export/import uses a versioned transfer format for structured Doyo data.
+- Full SQLite backup/restore is the exact recovery workflow.
 - Markdown export creates readable task documents.
 
 ## Data Migration From TodoApp
 
-On first Doyo launch, if the Doyo database is missing and an old TodoApp database exists, Doyo copies the old data into the new app data directory. The old TodoApp directory remains untouched as a recovery copy.
+On first Doyo launch, if the new Doyo database is missing, Doyo copies compatible data from the previous Doyo identifier or the older TodoApp identifier. Old directories remain untouched as recovery copies.

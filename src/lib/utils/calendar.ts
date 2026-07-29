@@ -86,7 +86,9 @@ export function isAllDayTask(node: Node) {
 
 export function itemDurationMinutes(node: Node | TimeBlock) {
   if ('startTime' in node) {
-    const minutes = Math.round((new Date(node.endTime).getTime() - new Date(node.startTime).getTime()) / 60000);
+    const minutes = Math.round(
+      (new Date(node.endTime).getTime() - new Date(node.startTime).getTime()) / 60000,
+    );
     return Math.max(15, minutes);
   }
   return node.properties.estimatedDurationMinutes ?? 60;

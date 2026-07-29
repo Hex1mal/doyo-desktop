@@ -40,11 +40,19 @@
   <header class="timeline-toolbar">
     <div>
       <h2>Timeline</h2>
-      <p>Tasks are shown by existing start and due dates. Drag bars to move; drag handles to resize.</p>
+      <p>
+        Tasks are shown by existing start and due dates. Drag bars to move; drag handles to resize.
+      </p>
     </div>
-    <button onclick={() => uiStore.setTimelinePrefs({ currentDate: new Date().toISOString() })}>Today</button>
-    <button onclick={() => shift(prefs.zoom === 'month' ? -30 : prefs.zoom === 'week' ? -7 : -1)}>Previous</button>
-    <button onclick={() => shift(prefs.zoom === 'month' ? 30 : prefs.zoom === 'week' ? 7 : 1)}>Next</button>
+    <button onclick={() => uiStore.setTimelinePrefs({ currentDate: new Date().toISOString() })}
+      >Today</button
+    >
+    <button onclick={() => shift(prefs.zoom === 'month' ? -30 : prefs.zoom === 'week' ? -7 : -1)}
+      >Previous</button
+    >
+    <button onclick={() => shift(prefs.zoom === 'month' ? 30 : prefs.zoom === 'week' ? 7 : 1)}
+      >Next</button
+    >
     <label>
       Zoom
       <select value={prefs.zoom} onchange={(e) => setZoom((e.target as HTMLSelectElement).value)}>
@@ -57,7 +65,8 @@
       <input
         type="checkbox"
         checked={prefs.showCompleted}
-        onchange={(e) => uiStore.setTimelinePrefs({ showCompleted: (e.target as HTMLInputElement).checked })}
+        onchange={(e) =>
+          uiStore.setTimelinePrefs({ showCompleted: (e.target as HTMLInputElement).checked })}
       />
       Completed
     </label>

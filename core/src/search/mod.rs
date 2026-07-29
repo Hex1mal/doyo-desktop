@@ -27,14 +27,17 @@ impl SearchService {
                    FROM nodes_fts JOIN nodes n ON nodes_fts.node_id = n.id
                    WHERE nodes_fts MATCH ?1 AND n.deleted_at IS NULL ORDER BY rank LIMIT 50";
         let mut stmt = conn.prepare(sql)?;
-        let results = stmt.query_map(rusqlite::params![fts_query], |row| {
-            Ok(SearchResult {
-                node_id: row.get(0)?,
-                title: row.get(1)?,
-                snippet: row.get(2)?,
-                rank: row.get(3)?,
-            })
-        })?.filter_map(|r| r.ok()).collect();
+        let results = stmt
+            .query_map(rusqlite::params![fts_query], |row| {
+                Ok(SearchResult {
+                    node_id: row.get(0)?,
+                    title: row.get(1)?,
+                    snippet: row.get(2)?,
+                    rank: row.get(3)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         Ok(results)
     }
 }

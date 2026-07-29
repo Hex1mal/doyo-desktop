@@ -4,15 +4,14 @@
   import { uiStore, type KanbanMode } from '$lib/stores/ui.svelte';
   import type { TaskProjectionItem } from '$lib/utils/task-projection';
 
-  let { item, mode, columnKey }: { item: TaskProjectionItem; mode: KanbanMode; columnKey: string } = $props();
+  let { item, mode, columnKey }: { item: TaskProjectionItem; mode: KanbanMode; columnKey: string } =
+    $props();
   let dragging = $state(false);
-  let press:
-    | {
-        pointerId: number;
-        startX: number;
-        startY: number;
-      }
-    | null = null;
+  let press: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null = null;
 
   function select() {
     nodeStore.select(item.node.id);
@@ -20,7 +19,11 @@
   }
 
   function begin(event: PointerEvent) {
-    if (event.button !== 0 || (event.target instanceof HTMLElement && event.target.closest('button'))) return;
+    if (
+      event.button !== 0 ||
+      (event.target instanceof HTMLElement && event.target.closest('button'))
+    )
+      return;
     press = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   }
@@ -48,7 +51,8 @@
     if (!wasDragging) return;
     event.preventDefault();
     const target = document.elementFromPoint(event.clientX, event.clientY);
-    const column = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-kanban-column]') : null;
+    const column =
+      target instanceof HTMLElement ? target.closest<HTMLElement>('[data-kanban-column]') : null;
     if (column?.dataset.kanbanColumn) {
       await kanbanStore.moveTask(item.node, mode, column.dataset.kanbanColumn, columnKey);
     }
@@ -91,7 +95,12 @@
     <strong>{item.node.title || 'Untitled'}</strong>
     <span>{item.label}</span>
   </div>
-  <div class="meta">{item.path.slice(0, -1).map((node) => node.title || 'Untitled').join(' › ') || 'No path'}</div>
+  <div class="meta">
+    {item.path
+      .slice(0, -1)
+      .map((node) => node.title || 'Untitled')
+      .join(' › ') || 'No path'}
+  </div>
   <div class="chips">
     <span>P{item.node.properties.priority ?? 4}</span>
     {#if item.node.properties.dueDate}

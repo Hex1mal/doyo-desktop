@@ -17,21 +17,9 @@ export type ActiveModule =
 
 export type CompletionPolicy = 'individual' | 'ask' | 'cascade';
 export type ListSort =
-  | 'manual'
-  | 'title'
-  | 'created'
-  | 'updated'
-  | 'due'
-  | 'priority'
-  | 'completed';
+  'manual' | 'title' | 'created' | 'updated' | 'due' | 'priority' | 'completed';
 export type ListGroup =
-  | 'none'
-  | 'workspace'
-  | 'group'
-  | 'due'
-  | 'priority'
-  | 'tag'
-  | 'completionPeriod';
+  'none' | 'workspace' | 'group' | 'due' | 'priority' | 'tag' | 'completionPeriod';
 export type ListDensity = 'compact' | 'comfortable';
 
 export type ListPrefs = {
@@ -227,7 +215,11 @@ function applyPrefs(prefs: Partial<UiPrefs>) {
   state.inspectorVisible = prefs.inspectorVisible ?? state.inspectorVisible;
   state.sidebarWidth = clamp(prefs.sidebarWidth ?? state.sidebarWidth, 220, 520);
   state.inspectorWidth = clamp(prefs.inspectorWidth ?? state.inspectorWidth, 260, 560);
-  if (prefs.completionPolicy === 'individual' || prefs.completionPolicy === 'ask' || prefs.completionPolicy === 'cascade') {
+  if (
+    prefs.completionPolicy === 'individual' ||
+    prefs.completionPolicy === 'ask' ||
+    prefs.completionPolicy === 'cascade'
+  ) {
     state.completionPolicy = prefs.completionPolicy;
   }
   state.listPrefs = prefs.listPrefs ?? state.listPrefs;
@@ -238,23 +230,57 @@ function applyPrefs(prefs: Partial<UiPrefs>) {
 }
 
 export const uiStore = {
-  get theme() { return state.theme; },
-  get activeModule() { return state.activeModule; },
-  get sidebarVisible() { return state.sidebarVisible; },
-  get inspectorVisible() { return state.inspectorVisible; },
-  get sidebarWidth() { return state.sidebarWidth; },
-  get inspectorWidth() { return state.inspectorWidth; },
-  get completionPolicy() { return state.completionPolicy; },
-  get listPrefs() { return state.listPrefs; },
-  get calendarPrefs() { return state.calendarPrefs; },
-  get kanbanPrefs() { return state.kanbanPrefs; },
-  get timelinePrefs() { return state.timelinePrefs; },
-  get focusPrefs() { return state.focusPrefs; },
-  get moveDialogNodeId() { return state.moveDialogNodeId; },
-  get configDialogNodeId() { return state.configDialogNodeId; },
-  get focusMode() { return state.focusMode; },
-  get dueDatePromptOpen() { return state.dueDatePromptOpen; },
-  get quickOpenOpen() { return state.quickOpenOpen; },
+  get theme() {
+    return state.theme;
+  },
+  get activeModule() {
+    return state.activeModule;
+  },
+  get sidebarVisible() {
+    return state.sidebarVisible;
+  },
+  get inspectorVisible() {
+    return state.inspectorVisible;
+  },
+  get sidebarWidth() {
+    return state.sidebarWidth;
+  },
+  get inspectorWidth() {
+    return state.inspectorWidth;
+  },
+  get completionPolicy() {
+    return state.completionPolicy;
+  },
+  get listPrefs() {
+    return state.listPrefs;
+  },
+  get calendarPrefs() {
+    return state.calendarPrefs;
+  },
+  get kanbanPrefs() {
+    return state.kanbanPrefs;
+  },
+  get timelinePrefs() {
+    return state.timelinePrefs;
+  },
+  get focusPrefs() {
+    return state.focusPrefs;
+  },
+  get moveDialogNodeId() {
+    return state.moveDialogNodeId;
+  },
+  get configDialogNodeId() {
+    return state.configDialogNodeId;
+  },
+  get focusMode() {
+    return state.focusMode;
+  },
+  get dueDatePromptOpen() {
+    return state.dueDatePromptOpen;
+  },
+  get quickOpenOpen() {
+    return state.quickOpenOpen;
+  },
 
   async loadPersistedSettings() {
     try {

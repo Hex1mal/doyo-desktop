@@ -1,0 +1,18 @@
+title = "Doyo gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "LocalStorage preference keys are not secrets"
+paths = [
+  '''src/lib/stores/reminders\.svelte\.ts''',
+  '''src/lib/stores/ui\.svelte\.ts''',
+]
+regexes = [
+  '''doyo\.sentReminderKeys\.v1''',
+  '''todoapp\.sentReminderKeys\.v1''',
+  '''doyo\.uiPrefs\.v1''',
+  '''todoapp\.uiPrefs\.v1''',
+]
+

@@ -1,32 +1,13 @@
 import type { Node, Tag } from '../types/node';
 
 export type ProjectionMode =
-  | 'active'
-  | 'completed'
-  | 'deleted'
-  | 'inbox'
-  | 'today'
-  | 'upcoming'
-  | 'overdue'
-  | 'tag';
+  'active' | 'completed' | 'deleted' | 'inbox' | 'today' | 'upcoming' | 'overdue' | 'tag';
 
 export type SortMode =
-  | 'manual'
-  | 'title'
-  | 'created'
-  | 'updated'
-  | 'due'
-  | 'priority'
-  | 'completed';
+  'manual' | 'title' | 'created' | 'updated' | 'due' | 'priority' | 'completed';
 
 export type GroupMode =
-  | 'none'
-  | 'workspace'
-  | 'group'
-  | 'due'
-  | 'priority'
-  | 'tag'
-  | 'completionPeriod';
+  'none' | 'workspace' | 'group' | 'due' | 'priority' | 'tag' | 'completionPeriod';
 
 export type DensityMode = 'compact' | 'comfortable';
 
@@ -120,7 +101,10 @@ export function customTags(node: Node): string[] {
   if (!custom || typeof custom !== 'object' || Array.isArray(custom)) return [];
   const tags = custom.tags;
   return Array.isArray(tags)
-    ? tags.filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.trim()).filter(Boolean)
+    ? tags
+        .filter((tag): tag is string => typeof tag === 'string')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
     : [];
 }
 
@@ -230,7 +214,10 @@ export function projectTasks(nodes: Node[], options: ProjectionOptions = {}): Ta
     if (mode === 'deleted' ? !deleted : deleted) continue;
     if (mode === 'active' && node.isCompleted) continue;
     if (mode === 'completed' && !node.isCompleted) continue;
-    if ((mode === 'today' || mode === 'upcoming' || mode === 'overdue' || mode === 'inbox') && node.isCompleted) {
+    if (
+      (mode === 'today' || mode === 'upcoming' || mode === 'overdue' || mode === 'inbox') &&
+      node.isCompleted
+    ) {
       continue;
     }
 
@@ -280,20 +267,39 @@ export function applyFilters(
     if (filters.priority && item.node.properties.priority !== filters.priority) return false;
     if (filters.workspaceId && item.workspace?.id !== filters.workspaceId) return false;
     if (filters.ancestorId && !hasAncestor(item, filters.ancestorId)) return false;
-    if (filters.pinned !== null && filters.pinned !== undefined && Boolean(item.node.properties.pinned) !== filters.pinned) {
+    if (
+      filters.pinned !== null &&
+      filters.pinned !== undefined &&
+      Boolean(item.node.properties.pinned) !== filters.pinned
+    ) {
       return false;
     }
-    if (filters.wontDo !== null && filters.wontDo !== undefined && isWontDo(item.node) !== filters.wontDo) {
+    if (
+      filters.wontDo !== null &&
+      filters.wontDo !== undefined &&
+      isWontDo(item.node) !== filters.wontDo
+    ) {
       return false;
     }
-    if (filters.tagIds?.length && !filters.tagIds.every((id) => item.tags.some((tag) => tag.id === id))) {
+    if (
+      filters.tagIds?.length &&
+      !filters.tagIds.every((id) => item.tags.some((tag) => tag.id === id))
+    ) {
       return false;
     }
     if (filters.text && !textMatches(item, filters.text)) return false;
-    if (filters.dateFrom && (!item.node.properties.dueDate || new Date(item.node.properties.dueDate) < new Date(filters.dateFrom))) {
+    if (
+      filters.dateFrom &&
+      (!item.node.properties.dueDate ||
+        new Date(item.node.properties.dueDate) < new Date(filters.dateFrom))
+    ) {
       return false;
     }
-    if (filters.dateTo && (!item.node.properties.dueDate || new Date(item.node.properties.dueDate) > new Date(filters.dateTo))) {
+    if (
+      filters.dateTo &&
+      (!item.node.properties.dueDate ||
+        new Date(item.node.properties.dueDate) > new Date(filters.dateTo))
+    ) {
       return false;
     }
     if (filters.dueState === 'overdue') {
@@ -302,9 +308,13 @@ export function applyFilters(
     }
     if (filters.dueState === 'today') {
       const due = item.node.properties.dueDate ? new Date(item.node.properties.dueDate) : null;
-      if (!due || due < startOfLocalDay(now) || due >= addDays(startOfLocalDay(now), 1)) return false;
+      if (!due || due < startOfLocalDay(now) || due >= addDays(startOfLocalDay(now), 1))
+        return false;
     }
-    if (filters.dueState === 'upcoming' && !inNextSevenTotalDays(item.node.properties.dueDate, now)) {
+    if (
+      filters.dueState === 'upcoming' &&
+      !inNextSevenTotalDays(item.node.properties.dueDate, now)
+    ) {
       return false;
     }
     if (filters.dueState === 'due' && !item.node.properties.dueDate) return false;
@@ -326,9 +336,12 @@ export function sortProjection(items: TaskProjectionItem[], sort: SortMode) {
     if (sort === 'title') result = a.item.node.title.localeCompare(b.item.node.title);
     if (sort === 'created') result = a.item.node.createdAt.localeCompare(b.item.node.createdAt);
     if (sort === 'updated') result = b.item.node.updatedAt.localeCompare(a.item.node.updatedAt);
-    if (sort === 'due') result = compareNullable(a.item.node.properties.dueDate, b.item.node.properties.dueDate);
-    if (sort === 'priority') result = (a.item.node.properties.priority ?? 4) - (b.item.node.properties.priority ?? 4);
-    if (sort === 'completed') result = compareNullable(b.item.node.completedAt, a.item.node.completedAt);
+    if (sort === 'due')
+      result = compareNullable(a.item.node.properties.dueDate, b.item.node.properties.dueDate);
+    if (sort === 'priority')
+      result = (a.item.node.properties.priority ?? 4) - (b.item.node.properties.priority ?? 4);
+    if (sort === 'completed')
+      result = compareNullable(b.item.node.completedAt, a.item.node.completedAt);
     if (sort === 'manual') {
       result = 0;
     }
@@ -337,7 +350,10 @@ export function sortProjection(items: TaskProjectionItem[], sort: SortMode) {
   return indexed.map(({ item }) => item);
 }
 
-export function groupProjection(items: TaskProjectionItem[], group: GroupMode): TaskProjectionGroup[] {
+export function groupProjection(
+  items: TaskProjectionItem[],
+  group: GroupMode,
+): TaskProjectionGroup[] {
   if (group === 'none') return [{ key: 'all', title: 'Tasks', items }];
   const groups = new Map<string, TaskProjectionGroup>();
   const add = (key: string, title: string, item: TaskProjectionItem) => {
@@ -346,13 +362,19 @@ export function groupProjection(items: TaskProjectionItem[], group: GroupMode): 
     groups.set(key, group);
   };
   for (const item of items) {
-    if (group === 'workspace') add(item.workspace?.id ?? 'none', item.workspace?.title ?? 'No workspace', item);
+    if (group === 'workspace')
+      add(item.workspace?.id ?? 'none', item.workspace?.title ?? 'No workspace', item);
     if (group === 'group') {
       const container = [...item.path].reverse().find((node) => node.nodeType === 'Group');
       add(container?.id ?? 'none', container?.title ?? 'No group', item);
     }
     if (group === 'due') add(item.dueDay ?? 'none', item.dueDay ?? 'No due date', item);
-    if (group === 'priority') add(String(item.node.properties.priority ?? 4), `P${item.node.properties.priority ?? 4}`, item);
+    if (group === 'priority')
+      add(
+        String(item.node.properties.priority ?? 4),
+        `P${item.node.properties.priority ?? 4}`,
+        item,
+      );
     if (group === 'tag') {
       if (item.tags.length === 0) add('none', 'No tags', item);
       for (const tag of item.tags) add(tag.id, tag.name, item);

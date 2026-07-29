@@ -60,7 +60,9 @@
     overflow-x: auto;
     white-space: nowrap;
   }
-  .sep { color: var(--text-tertiary); }
+  .sep {
+    color: var(--text-tertiary);
+  }
   .crumb {
     border: none;
     background: none;
@@ -70,6 +72,13 @@
     border-radius: 4px;
     font-size: inherit;
   }
-  .crumb:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .crumb.current { color: var(--text-primary); font-weight: 600; cursor: default; }
+  .crumb:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .crumb.current {
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: default;
+  }
 </style>

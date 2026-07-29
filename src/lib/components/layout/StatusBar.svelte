@@ -29,9 +29,20 @@
     flex-shrink: 0;
     user-select: none;
   }
-  .left { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .center { flex: 0 0 auto; padding: 0 var(--space-4); }
-  .right { flex: 1; text-align: right; }
+  .left {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .center {
+    flex: 0 0 auto;
+    padding: 0 var(--space-4);
+  }
+  .right {
+    flex: 1;
+    text-align: right;
+  }
   kbd {
     font-family: var(--font-mono);
     font-size: 10px;

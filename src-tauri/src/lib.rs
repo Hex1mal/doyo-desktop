@@ -1,17 +1,26 @@
+use doyo_core::backup::BackupService;
+use doyo_core::countdown::{
+    Countdown, CountdownService, CreateCountdownInput, UpdateCountdownInput,
+};
+use doyo_core::db::Database;
+use doyo_core::focus::{FocusService, FocusSession, FocusSummary, StartFocusInput, StopFocusInput};
+use doyo_core::habit::{
+    CreateHabitInput, Habit, HabitLog, HabitService, HabitSummary, UpdateHabitInput,
+    UpsertHabitLogInput,
+};
+use doyo_core::node::model::*;
+use doyo_core::node::service::NodeService;
+use doyo_core::saved_filter::{
+    CreateSavedFilterInput, SavedFilter, SavedFilterService, UpdateSavedFilterInput,
+};
+use doyo_core::settings::SettingsRepository;
+use doyo_core::tag::{Tag, TagRepository, TagService};
+use doyo_core::time_block::{
+    CreateTimeBlockInput, TimeBlock, TimeBlockService, UpdateTimeBlockInput,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Manager;
-use doyo_core::backup::BackupService;
-use doyo_core::countdown::{Countdown, CountdownService, CreateCountdownInput, UpdateCountdownInput};
-use doyo_core::db::Database;
-use doyo_core::habit::{CreateHabitInput, Habit, HabitLog, HabitService, HabitSummary, UpdateHabitInput, UpsertHabitLogInput};
-use doyo_core::node::model::*;
-use doyo_core::node::service::NodeService;
-use doyo_core::focus::{FocusService, FocusSession, FocusSummary, StartFocusInput, StopFocusInput};
-use doyo_core::saved_filter::{CreateSavedFilterInput, SavedFilter, SavedFilterService, UpdateSavedFilterInput};
-use doyo_core::settings::SettingsRepository;
-use doyo_core::tag::{Tag, TagRepository, TagService};
-use doyo_core::time_block::{CreateTimeBlockInput, TimeBlock, TimeBlockService, UpdateTimeBlockInput};
 
 pub struct AppState {
     pub node_service: std::sync::Mutex<NodeService>,
@@ -20,21 +29,50 @@ pub struct AppState {
     pub backup_dir: std::path::PathBuf,
 }
 
-const OLD_APP_DIR_NAME: &str = "com.todoapp.desktop";
-const OLD_DB_NAME: &str = "todoapp.db";
+const LEGACY_TODOAPP_APP_DIR_NAME: &str = "com.todoapp.desktop";
+const LEGACY_TODOAPP_DB_NAME: &str = "todoapp.db";
+const LEGACY_DOYO_APP_DIR_NAME: &str = "io.github.sembee.doyo";
+const LEGACY_DOYO_DB_NAME: &str = "doyo.db";
 const NEW_DB_NAME: &str = "doyo.db";
 
+struct LegacyDataSource {
+    app_dir_name: &'static str,
+    db_name: &'static str,
+    label: &'static str,
+}
+
+const LEGACY_DATA_SOURCES: [LegacyDataSource; 2] = [
+    LegacyDataSource {
+        app_dir_name: LEGACY_DOYO_APP_DIR_NAME,
+        db_name: LEGACY_DOYO_DB_NAME,
+        label: "legacy-doyo",
+    },
+    LegacyDataSource {
+        app_dir_name: LEGACY_TODOAPP_APP_DIR_NAME,
+        db_name: LEGACY_TODOAPP_DB_NAME,
+        label: "legacy-todoapp",
+    },
+];
+
 fn validate_sqlite_database(path: &Path) -> Result<i64, String> {
-    let db = Database::open(path).map_err(|e| format!("failed to open database {}: {e}", path.display()))?;
+    let db = Database::open(path)
+        .map_err(|e| format!("failed to open database {}: {e}", path.display()))?;
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let integrity: String = conn
         .query_row("PRAGMA integrity_check", [], |row| row.get(0))
         .map_err(|e| format!("failed integrity check for {}: {e}", path.display()))?;
     if integrity != "ok" {
-        return Err(format!("database integrity check failed for {}: {integrity}", path.display()));
+        return Err(format!(
+            "database integrity check failed for {}: {integrity}",
+            path.display()
+        ));
     }
-    conn.query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |row| row.get(0))
-        .map_err(|e| format!("failed to read schema_version for {}: {e}", path.display()))
+    conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("failed to read schema_version for {}: {e}", path.display()))
 }
 
 fn copy_file_if_missing(source: &Path, destination: &Path) -> Result<(), String> {
@@ -44,12 +82,20 @@ fn copy_file_if_missing(source: &Path, destination: &Path) -> Result<(), String>
     if let Some(parent) = destination.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    std::fs::copy(source, destination)
-        .map(|_| ())
-        .map_err(|e| format!("failed to copy {} to {}: {e}", source.display(), destination.display()))
+    std::fs::copy(source, destination).map(|_| ()).map_err(|e| {
+        format!(
+            "failed to copy {} to {}: {e}",
+            source.display(),
+            destination.display()
+        )
+    })
 }
 
-fn copy_dir_contents_if_missing(source_dir: &Path, destination_dir: &Path) -> Result<(), String> {
+fn copy_dir_contents_if_missing(
+    source_dir: &Path,
+    destination_dir: &Path,
+    source_db_name: &str,
+) -> Result<(), String> {
     if !source_dir.exists() {
         return Ok(());
     }
@@ -58,13 +104,13 @@ fn copy_dir_contents_if_missing(source_dir: &Path, destination_dir: &Path) -> Re
         let entry = entry.map_err(|e| e.to_string())?;
         let source_path = entry.path();
         let file_name = entry.file_name();
-        if file_name.to_string_lossy().starts_with(OLD_DB_NAME) {
+        if file_name.to_string_lossy().starts_with(source_db_name) {
             continue;
         }
         let destination_path = destination_dir.join(file_name);
         let metadata = entry.metadata().map_err(|e| e.to_string())?;
         if metadata.is_dir() {
-            copy_dir_contents_if_missing(&source_path, &destination_path)?;
+            copy_dir_contents_if_missing(&source_path, &destination_path, source_db_name)?;
         } else if metadata.is_file() {
             copy_file_if_missing(&source_path, &destination_path)?;
         }
@@ -72,17 +118,29 @@ fn copy_dir_contents_if_missing(source_dir: &Path, destination_dir: &Path) -> Re
     Ok(())
 }
 
-fn create_migration_safety_backup(source_db: &Path, new_app_dir: &Path) -> Result<PathBuf, String> {
+fn create_migration_safety_backup(
+    source_db: &Path,
+    new_app_dir: &Path,
+    label: &str,
+) -> Result<PathBuf, String> {
     let backup_dir = new_app_dir.join("migration-backups");
     std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
     let stamp = chrono::Utc::now().format("%Y-%m-%d-%H%M%S");
-    let backup_path = backup_dir.join(format!("pre-doyo-migration-{stamp}-{}.db", uuid::Uuid::now_v7()));
+    let backup_path = backup_dir.join(format!(
+        "pre-doyo-migration-{label}-{stamp}-{}.db",
+        uuid::Uuid::now_v7()
+    ));
     std::fs::copy(source_db, &backup_path)
         .map(|_| backup_path)
-        .map_err(|e| format!("failed to create migration safety backup from {}: {e}", source_db.display()))
+        .map_err(|e| {
+            format!(
+                "failed to create migration safety backup from {}: {e}",
+                source_db.display()
+            )
+        })
 }
 
-fn migrate_legacy_todoapp_data(new_app_dir: &Path) -> Result<(), String> {
+fn migrate_legacy_doyo_data(new_app_dir: &Path) -> Result<(), String> {
     let new_db_path = new_app_dir.join(NEW_DB_NAME);
     if new_db_path.exists() {
         validate_sqlite_database(&new_db_path)?;
@@ -92,24 +150,41 @@ fn migrate_legacy_todoapp_data(new_app_dir: &Path) -> Result<(), String> {
     let Some(data_parent) = new_app_dir.parent() else {
         return Ok(());
     };
-    let old_app_dir = data_parent.join(OLD_APP_DIR_NAME);
-    let old_db_path = old_app_dir.join(OLD_DB_NAME);
-    if !old_db_path.exists() {
+
+    let Some(source) = LEGACY_DATA_SOURCES.iter().find(|source| {
+        data_parent
+            .join(source.app_dir_name)
+            .join(source.db_name)
+            .exists()
+    }) else {
         return Ok(());
-    }
+    };
+    let old_app_dir = data_parent.join(source.app_dir_name);
+    let old_db_path = old_app_dir.join(source.db_name);
 
     let old_schema_version = validate_sqlite_database(&old_db_path)?;
     std::fs::create_dir_all(new_app_dir).map_err(|e| e.to_string())?;
-    create_migration_safety_backup(&old_db_path, new_app_dir)?;
+    create_migration_safety_backup(&old_db_path, new_app_dir, source.label)?;
 
-    copy_dir_contents_if_missing(&old_app_dir.join("backups"), &new_app_dir.join("backups"))?;
-    copy_dir_contents_if_missing(&old_app_dir.join("localstorage"), &new_app_dir.join("localstorage"))?;
+    copy_dir_contents_if_missing(
+        &old_app_dir.join("backups"),
+        &new_app_dir.join("backups"),
+        source.db_name,
+    )?;
+    copy_dir_contents_if_missing(
+        &old_app_dir.join("localstorage"),
+        &new_app_dir.join("localstorage"),
+        source.db_name,
+    )?;
     copy_file_if_missing(&old_db_path, &new_db_path)?;
 
     for suffix in ["-wal", "-shm"] {
-        let old_sidecar = old_app_dir.join(format!("{OLD_DB_NAME}{suffix}"));
+        let old_sidecar = old_app_dir.join(format!("{}{suffix}", source.db_name));
         if old_sidecar.exists() {
-            copy_file_if_missing(&old_sidecar, &new_app_dir.join(format!("{NEW_DB_NAME}{suffix}")))?;
+            copy_file_if_missing(
+                &old_sidecar,
+                &new_app_dir.join(format!("{NEW_DB_NAME}{suffix}")),
+            )?;
         }
     }
 
@@ -137,7 +212,7 @@ fn node_create(
     title: String,
     body: Option<String>,
 ) -> Result<Node, String> {
-    let nt = NodeType::from_str(&node_type).unwrap_or(NodeType::Task);
+    let nt = NodeType::parse(&node_type).unwrap_or(NodeType::Task);
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
     let input = CreateNodeInput {
         parent_id,
@@ -151,7 +226,11 @@ fn node_create(
 }
 
 #[tauri::command]
-fn node_update(state: tauri::State<AppState>, id: String, changes: UpdateNodeInput) -> Result<Node, String> {
+fn node_update(
+    state: tauri::State<AppState>,
+    id: String,
+    changes: UpdateNodeInput,
+) -> Result<Node, String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
     service.update(&id, changes).map_err(|e| e.to_string())
 }
@@ -193,21 +272,39 @@ fn node_duplicate(state: tauri::State<AppState>, id: String) -> Result<Node, Str
 }
 
 #[tauri::command]
-fn node_move(state: tauri::State<AppState>, id: String, new_parent_id: Option<String>, position: f64) -> Result<(), String> {
+fn node_move(
+    state: tauri::State<AppState>,
+    id: String,
+    new_parent_id: Option<String>,
+    position: f64,
+) -> Result<(), String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.move_node(&id, new_parent_id.as_deref(), position).map_err(|e| e.to_string())
+    service
+        .move_node(&id, new_parent_id.as_deref(), position)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn node_reorder(state: tauri::State<AppState>, parent_id: String, child_ids: Vec<String>) -> Result<(), String> {
+fn node_reorder(
+    state: tauri::State<AppState>,
+    parent_id: String,
+    child_ids: Vec<String>,
+) -> Result<(), String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.reorder_children(&parent_id, &child_ids).map_err(|e| e.to_string())
+    service
+        .reorder_children(&parent_id, &child_ids)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn tree_get_children(state: tauri::State<AppState>, parent_id: Option<String>) -> Result<Vec<Node>, String> {
+fn tree_get_children(
+    state: tauri::State<AppState>,
+    parent_id: Option<String>,
+) -> Result<Vec<Node>, String> {
     let service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.get_children(parent_id.as_deref()).map_err(|e| e.to_string())
+    service
+        .get_children(parent_id.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -217,22 +314,41 @@ fn tree_get_ancestors(state: tauri::State<AppState>, id: String) -> Result<Vec<N
 }
 
 #[tauri::command]
-fn tree_get_full(state: tauri::State<AppState>, root_id: Option<String>) -> Result<Vec<Node>, String> {
+fn tree_get_full(
+    state: tauri::State<AppState>,
+    root_id: Option<String>,
+) -> Result<Vec<Node>, String> {
     let service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.get_full_tree(root_id.as_deref()).map_err(|e| e.to_string())
+    service
+        .get_full_tree(root_id.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn node_set_due_date(state: tauri::State<AppState>, id: String, due_date: Option<String>) -> Result<Node, String> {
-    let dt = due_date.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|d| d.with_timezone(&chrono::Utc)));
+fn node_set_due_date(
+    state: tauri::State<AppState>,
+    id: String,
+    due_date: Option<String>,
+) -> Result<Node, String> {
+    let dt = due_date.and_then(|s| {
+        chrono::DateTime::parse_from_rfc3339(&s)
+            .ok()
+            .map(|d| d.with_timezone(&chrono::Utc))
+    });
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
     service.set_due_date(&id, dt).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn node_set_priority(state: tauri::State<AppState>, id: String, priority: i32) -> Result<Node, String> {
+fn node_set_priority(
+    state: tauri::State<AppState>,
+    id: String,
+    priority: i32,
+) -> Result<Node, String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.set_priority(&id, priority).map_err(|e| e.to_string())
+    service
+        .set_priority(&id, priority)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -242,19 +358,35 @@ fn node_toggle_complete(state: tauri::State<AppState>, id: String) -> Result<Nod
 }
 
 #[tauri::command]
-fn node_set_completion(state: tauri::State<AppState>, id: String, completed: bool, cascade: bool) -> Result<Node, String> {
+fn node_set_completion(
+    state: tauri::State<AppState>,
+    id: String,
+    completed: bool,
+    cascade: bool,
+) -> Result<Node, String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.set_completion(&id, completed, cascade).map_err(|e| e.to_string())
+    service
+        .set_completion(&id, completed, cascade)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn node_incomplete_descendant_count(state: tauri::State<AppState>, id: String) -> Result<u32, String> {
+fn node_incomplete_descendant_count(
+    state: tauri::State<AppState>,
+    id: String,
+) -> Result<u32, String> {
     let service = state.node_service.lock().map_err(|e| e.to_string())?;
-    service.incomplete_task_descendant_count(&id).map_err(|e| e.to_string())
+    service
+        .incomplete_task_descendant_count(&id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn search_query(state: tauri::State<AppState>, query: String, filters: SearchFilters) -> Result<Vec<SearchResult>, String> {
+fn search_query(
+    state: tauri::State<AppState>,
+    query: String,
+    filters: SearchFilters,
+) -> Result<Vec<SearchResult>, String> {
     let service = state.node_service.lock().map_err(|e| e.to_string())?;
     service.search(&query, filters).map_err(|e| e.to_string())
 }
@@ -293,21 +425,35 @@ fn redo(state: tauri::State<AppState>) -> Result<String, String> {
 fn export_json(state: tauri::State<AppState>, root_id: Option<String>) -> Result<String, String> {
     use doyo_core::export::ExportService;
     let export_svc = ExportService::new(state.db.clone());
-    export_svc.export_json(root_id.as_deref()).map_err(|e| e.to_string())
+    export_svc
+        .export_json(root_id.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn export_markdown(state: tauri::State<AppState>, root_id: Option<String>, output_dir: String) -> Result<(), String> {
+fn export_markdown(
+    state: tauri::State<AppState>,
+    root_id: Option<String>,
+    output_dir: String,
+) -> Result<(), String> {
     use doyo_core::export::ExportService;
     let export_svc = ExportService::new(state.db.clone());
-    export_svc.export_markdown(root_id.as_deref(), std::path::Path::new(&output_dir)).map_err(|e| e.to_string())
+    export_svc
+        .export_markdown(root_id.as_deref(), std::path::Path::new(&output_dir))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn import_json(state: tauri::State<AppState>, json: String, parent_id: Option<String>) -> Result<Vec<String>, String> {
+fn import_json(
+    state: tauri::State<AppState>,
+    json: String,
+    parent_id: Option<String>,
+) -> Result<Vec<String>, String> {
     use doyo_core::import::ImportService;
     let import_svc = ImportService::new(state.db.clone());
-    import_svc.import_json(&json, parent_id.as_deref()).map_err(|e| e.to_string())
+    import_svc
+        .import_json(&json, parent_id.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 fn tag_service(state: &tauri::State<AppState>) -> TagService {
@@ -344,18 +490,28 @@ fn tag_rename(
 
 #[tauri::command]
 fn tag_delete(state: tauri::State<AppState>, id: String) -> Result<(), String> {
-    tag_service(&state).delete_tag(&id).map_err(|e| e.to_string())
+    tag_service(&state)
+        .delete_tag(&id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn tag_assign(state: tauri::State<AppState>, node_id: String, tag_id: String) -> Result<(), String> {
+fn tag_assign(
+    state: tauri::State<AppState>,
+    node_id: String,
+    tag_id: String,
+) -> Result<(), String> {
     tag_service(&state)
         .assign_tag(&node_id, &tag_id)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn tag_remove(state: tauri::State<AppState>, node_id: String, tag_id: String) -> Result<(), String> {
+fn tag_remove(
+    state: tauri::State<AppState>,
+    node_id: String,
+    tag_id: String,
+) -> Result<(), String> {
     tag_service(&state)
         .remove_tag_id(&node_id, &tag_id)
         .map_err(|e| e.to_string())
@@ -440,12 +596,16 @@ fn focus_start(
     state: tauri::State<AppState>,
     input: StartFocusInput,
 ) -> Result<FocusSession, String> {
-    focus_service(&state).start(input).map_err(|e| e.to_string())
+    focus_service(&state)
+        .start(input)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn focus_get_active(state: tauri::State<AppState>) -> Result<Option<FocusSession>, String> {
-    focus_service(&state).get_active().map_err(|e| e.to_string())
+    focus_service(&state)
+        .get_active()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -464,12 +624,16 @@ fn focus_stop(
     id: String,
     input: StopFocusInput,
 ) -> Result<FocusSession, String> {
-    focus_service(&state).stop(&id, input).map_err(|e| e.to_string())
+    focus_service(&state)
+        .stop(&id, input)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn focus_list(state: tauri::State<AppState>, limit: i64) -> Result<Vec<FocusSession>, String> {
-    focus_service(&state).list_recent(limit).map_err(|e| e.to_string())
+    focus_service(&state)
+        .list_recent(limit)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -483,7 +647,9 @@ fn saved_filter_service(state: &tauri::State<AppState>) -> SavedFilterService {
 
 #[tauri::command]
 fn saved_filter_list(state: tauri::State<AppState>) -> Result<Vec<SavedFilter>, String> {
-    saved_filter_service(&state).list().map_err(|e| e.to_string())
+    saved_filter_service(&state)
+        .list()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -491,7 +657,9 @@ fn saved_filter_create(
     state: tauri::State<AppState>,
     input: CreateSavedFilterInput,
 ) -> Result<SavedFilter, String> {
-    saved_filter_service(&state).create(input).map_err(|e| e.to_string())
+    saved_filter_service(&state)
+        .create(input)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -507,7 +675,9 @@ fn saved_filter_update(
 
 #[tauri::command]
 fn saved_filter_delete(state: tauri::State<AppState>, id: String) -> Result<(), String> {
-    saved_filter_service(&state).delete(&id).map_err(|e| e.to_string())
+    saved_filter_service(&state)
+        .delete(&id)
+        .map_err(|e| e.to_string())
 }
 
 fn habit_service(state: &tauri::State<AppState>) -> HabitService {
@@ -523,7 +693,9 @@ fn habit_list(state: tauri::State<AppState>, include_archived: bool) -> Result<V
 
 #[tauri::command]
 fn habit_create(state: tauri::State<AppState>, input: CreateHabitInput) -> Result<Habit, String> {
-    habit_service(&state).create(input).map_err(|e| e.to_string())
+    habit_service(&state)
+        .create(input)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -538,7 +710,11 @@ fn habit_update(
 }
 
 #[tauri::command]
-fn habit_archive(state: tauri::State<AppState>, id: String, archived: bool) -> Result<Habit, String> {
+fn habit_archive(
+    state: tauri::State<AppState>,
+    id: String,
+    archived: bool,
+) -> Result<Habit, String> {
     habit_service(&state)
         .archive(&id, archived)
         .map_err(|e| e.to_string())
@@ -565,8 +741,8 @@ fn habit_log_delete(
     habit_id: String,
     log_date: String,
 ) -> Result<(), String> {
-    let log_date = chrono::NaiveDate::parse_from_str(&log_date, "%Y-%m-%d")
-        .map_err(|e| e.to_string())?;
+    let log_date =
+        chrono::NaiveDate::parse_from_str(&log_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     habit_service(&state)
         .delete_log(&habit_id, log_date)
         .map_err(|e| e.to_string())
@@ -646,7 +822,9 @@ fn countdown_archive(
 
 #[tauri::command]
 fn countdown_delete(state: tauri::State<AppState>, id: String) -> Result<(), String> {
-    countdown_service(&state).delete(&id).map_err(|e| e.to_string())
+    countdown_service(&state)
+        .delete(&id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -686,7 +864,9 @@ fn settings_set(
 
 #[tauri::command]
 fn settings_delete(state: tauri::State<AppState>, key: String) -> Result<(), String> {
-    settings_repo(&state).delete(&key).map_err(|e| e.to_string())
+    settings_repo(&state)
+        .delete(&key)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -720,7 +900,9 @@ fn backup_create(state: tauri::State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn backup_list(state: tauri::State<AppState>) -> Result<Vec<String>, String> {
-    backup_service(&state).list_backups().map_err(|e| e.to_string())
+    backup_service(&state)
+        .list_backups()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -734,14 +916,14 @@ fn backup_restore(state: tauri::State<AppState>, backup_name: String) -> Result<
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             std::fs::create_dir_all(&app_dir).expect("failed to create app data dir");
-            migrate_legacy_todoapp_data(&app_dir).expect("failed to migrate legacy TodoApp data");
+            migrate_legacy_doyo_data(&app_dir).expect("failed to migrate legacy Doyo data");
             let db_path = app_dir.join(NEW_DB_NAME);
             let backup_dir = app_dir.join("backups");
             let db = Arc::new(Database::open(&db_path).expect("failed to open database"));

@@ -142,7 +142,10 @@ impl CountdownService {
                  WHERE id = ?11",
                 params![
                     title,
-                    input.target_date.unwrap_or(current.target_date).to_rfc3339(),
+                    input
+                        .target_date
+                        .unwrap_or(current.target_date)
+                        .to_rfc3339(),
                     input.mode.unwrap_or(current.mode).as_str(),
                     input.icon.unwrap_or(current.icon),
                     input.color.unwrap_or(current.color),
@@ -196,8 +199,12 @@ impl CountdownService {
 
     pub fn get(&self, id: &str) -> Result<Countdown> {
         let conn = self.db.conn.lock().unwrap();
-        conn.query_row("SELECT * FROM countdowns WHERE id = ?1", params![id], map_countdown)
-            .map_err(|_| Error::NotFound(format!("Countdown not found: {}", id)))
+        conn.query_row(
+            "SELECT * FROM countdowns WHERE id = ?1",
+            params![id],
+            map_countdown,
+        )
+        .map_err(|_| Error::NotFound(format!("Countdown not found: {}", id)))
     }
 
     fn next_position(&self) -> Result<f64> {
@@ -228,7 +235,9 @@ fn map_countdown(row: &rusqlite::Row) -> rusqlite::Result<Countdown> {
         id: row.get(row.as_ref().column_index("id").unwrap())?,
         title: row.get(row.as_ref().column_index("title").unwrap())?,
         target_date: parse_date(row.get(row.as_ref().column_index("target_date").unwrap())?),
-        mode: CountdownMode::from_str(&row.get::<_, String>(row.as_ref().column_index("mode").unwrap())?),
+        mode: CountdownMode::from_str(
+            &row.get::<_, String>(row.as_ref().column_index("mode").unwrap())?,
+        ),
         icon: row.get(row.as_ref().column_index("icon").unwrap())?,
         color: row.get(row.as_ref().column_index("color").unwrap())?,
         recurrence: row.get(row.as_ref().column_index("recurrence").unwrap())?,

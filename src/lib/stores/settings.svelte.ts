@@ -107,9 +107,12 @@ export const settingsStore = {
   },
 
   async restoreBackup(name: string) {
-    if (!window.confirm('Restore this backup? The app should be restarted after restore.')) return false;
+    if (!window.confirm('Restore this backup? The app should be restarted after restore.'))
+      return false;
     try {
-      const prefs = await this.get('backup.preferences.v1', { createSafetyBackupBeforeRestore: true });
+      const prefs = await this.get('backup.preferences.v1', {
+        createSafetyBackupBeforeRestore: true,
+      });
       if (prefs.createSafetyBackupBeforeRestore) {
         await backupCreate();
       }

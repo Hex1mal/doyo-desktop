@@ -22,13 +22,11 @@
   let left = $derived(startIndex * dayWidth);
   let width = $derived(Math.max(92, (endIndex - startIndex + 1) * dayWidth - 8));
   let dragging = $state(false);
-  let press:
-    | {
-        pointerId: number;
-        x: number;
-        mode: 'move' | 'start' | 'end';
-      }
-    | null = null;
+  let press: {
+    pointerId: number;
+    x: number;
+    mode: 'move' | 'start' | 'end';
+  } | null = null;
 
   function select() {
     nodeStore.select(item.node.id);
@@ -95,7 +93,12 @@
     >
       <strong>{item.node.title || 'Untitled'}</strong>
       <span>{item.label} · P{item.node.properties.priority ?? 4}</span>
-      <span>{item.path.slice(0, -1).map((node) => node.title || 'Untitled').join(' › ') || 'No path'}</span>
+      <span
+        >{item.path
+          .slice(0, -1)
+          .map((node) => node.title || 'Untitled')
+          .join(' › ') || 'No path'}</span
+      >
     </div>
     <button
       class="handle end"

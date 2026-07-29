@@ -4,11 +4,11 @@ Doyo is a local-first desktop application. The frontend, desktop shell, and data
 
 ## Layers
 
-| Layer | Path | Responsibility |
-|---|---|---|
-| Frontend | `src/` | SvelteKit UI, stores, projections, keyboard handling, and view components |
+| Layer         | Path         | Responsibility                                                                    |
+| ------------- | ------------ | --------------------------------------------------------------------------------- |
+| Frontend      | `src/`       | SvelteKit UI, stores, projections, keyboard handling, and view components         |
 | Desktop shell | `src-tauri/` | Tauri window, commands, app data path, notifications, backup/restore entry points |
-| Core library | `core/` | SQLite access, migrations, domain services, validation, and integration tests |
+| Core library  | `core/`      | SQLite access, migrations, domain services, validation, and integration tests     |
 
 ## Data Flow
 
@@ -36,4 +36,8 @@ Database migrations are additive and registered in `core/src/db/migrations.rs`. 
 
 ## Local Data Migration
 
-The Doyo Tauri identifier is `io.github.sembee.doyo`. On startup, if `doyo.db` does not exist in the new app data directory, Doyo checks for the older `com.todoapp.desktop` data directory and copies compatible data into the new location. Existing Doyo data is never overwritten silently, and the old directory is left untouched.
+The Doyo Tauri identifier is `io.github.hex1mal.doyo`. On startup, if `doyo.db` does not exist in the new app data directory, Doyo checks `io.github.sembee.doyo` first and then `com.todoapp.desktop` for compatible legacy data. Existing Doyo data is never overwritten silently, and old directories are left untouched.
+
+## Import, Export, And Backup
+
+SQLite backup/restore is the exact recovery path. JSON import/export uses a versioned transfer envelope and recreates records inside a transaction while preserving hierarchy, ordering, timestamps, completion state, tags, time blocks, habits, countdowns, and focus-session relationships where applicable.

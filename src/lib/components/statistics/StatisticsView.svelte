@@ -98,24 +98,40 @@
   {#if tab === 'overview'}
     <div class="stats-grid">
       <article><span>Open tasks</span><strong>{taskStats.openTasks}</strong></article>
-      <article><span>Completed in range</span><strong>{taskStats.completedInRange}</strong></article>
+      <article>
+        <span>Completed in range</span><strong>{taskStats.completedInRange}</strong>
+      </article>
       <article><span>Completion rate</span><strong>{taskStats.completionRate}%</strong></article>
       <article><span>Overdue</span><strong>{taskStats.overdue}</strong></article>
-      <article><span>Focus in range</span><strong>{formatFocusDuration(focusStats.actualSeconds)}</strong></article>
-      <article><span>Total focus</span><strong>{formatFocusDuration(focusStore.summary.totalSeconds)}</strong></article>
+      <article>
+        <span>Focus in range</span><strong>{formatFocusDuration(focusStats.actualSeconds)}</strong>
+      </article>
+      <article>
+        <span>Total focus</span><strong
+          >{formatFocusDuration(focusStore.summary.totalSeconds)}</strong
+        >
+      </article>
       <article><span>Pomodoros</span><strong>{focusStats.pomodoroCount}</strong></article>
       <article><span>Active habits</span><strong>{habitStore.summary.activeCount}</strong></article>
-      <article><span>Best habit streak</span><strong>{habitStore.summary.bestStreak}</strong></article>
+      <article>
+        <span>Best habit streak</span><strong>{habitStore.summary.bestStreak}</strong>
+      </article>
     </div>
     {#if taskStats.totalTasks === 0 && focusStats.sessionCount === 0 && habitStats.logCount === 0}
-      <div class="empty-state small"><p>No statistics yet. Complete tasks, focus sessions, or habit logs to populate this view.</p></div>
+      <div class="empty-state small">
+        <p>
+          No statistics yet. Complete tasks, focus sessions, or habit logs to populate this view.
+        </p>
+      </div>
     {/if}
   {:else if tab === 'tasks'}
     <div class="stats-grid">
       <article><span>Total task records</span><strong>{taskStats.totalTasks}</strong></article>
       <article><span>Created in range</span><strong>{taskStats.createdInRange}</strong></article>
       <article><span>Completed all-time</span><strong>{taskStats.completedAll}</strong></article>
-      <article><span>Completed in range</span><strong>{taskStats.completedInRange}</strong></article>
+      <article>
+        <span>Completed in range</span><strong>{taskStats.completedInRange}</strong>
+      </article>
       <article><span>Overdue</span><strong>{taskStats.overdue}</strong></article>
       <article><span>Completion rate</span><strong>{taskStats.completionRate}%</strong></article>
     </div>
@@ -124,7 +140,12 @@
       {@render Trend('Created Tasks', taskStats.createdTrend)}
       {@render Breakdown('Completion by Workspace', breakdownBy(workspaceTitle))}
       {@render Breakdown('Completion by Group/Subgroup', breakdownBy(groupTitle))}
-      {@render Breakdown('Completion by Priority', breakdownBy((task) => task.properties.priority ? `P${task.properties.priority}` : 'No priority'))}
+      {@render Breakdown(
+        'Completion by Priority',
+        breakdownBy((task) =>
+          task.properties.priority ? `P${task.properties.priority}` : 'No priority',
+        ),
+      )}
       {@render Breakdown('Completion by Tag', tagBreakdown())}
     </div>
     {#if taskStats.totalTasks === 0}
@@ -133,15 +154,29 @@
   {:else if tab === 'focus'}
     <div class="stats-grid">
       <article><span>Sessions</span><strong>{focusStats.sessionCount}</strong></article>
-      <article><span>Actual focus</span><strong>{formatFocusDuration(focusStats.actualSeconds)}</strong></article>
-      <article><span>Planned time</span><strong>{formatFocusDuration(focusStats.plannedSeconds)}</strong></article>
-      <article><span>Pomodoro</span><strong>{formatFocusDuration(focusStats.pomodoroSeconds)}</strong></article>
-      <article><span>Stopwatch</span><strong>{formatFocusDuration(focusStats.stopwatchSeconds)}</strong></article>
-      <article><span>Flowtime</span><strong>{formatFocusDuration(focusStats.flowtimeSeconds)}</strong></article>
+      <article>
+        <span>Actual focus</span><strong>{formatFocusDuration(focusStats.actualSeconds)}</strong>
+      </article>
+      <article>
+        <span>Planned time</span><strong>{formatFocusDuration(focusStats.plannedSeconds)}</strong>
+      </article>
+      <article>
+        <span>Pomodoro</span><strong>{formatFocusDuration(focusStats.pomodoroSeconds)}</strong>
+      </article>
+      <article>
+        <span>Stopwatch</span><strong>{formatFocusDuration(focusStats.stopwatchSeconds)}</strong>
+      </article>
+      <article>
+        <span>Flowtime</span><strong>{formatFocusDuration(focusStats.flowtimeSeconds)}</strong>
+      </article>
     </div>
     <div class="trend-grid">
       {@render Trend('Focus Minutes', focusStats.focusTrend)}
-      {@render Breakdown('Focus by Task', focusByTask().map(([title, seconds]) => [title, Math.round(seconds / 60)]), 'min')}
+      {@render Breakdown(
+        'Focus by Task',
+        focusByTask().map(([title, seconds]) => [title, Math.round(seconds / 60)]),
+        'min',
+      )}
     </div>
     {#if focusStats.sessionCount === 0}
       <div class="empty-state small"><p>No focus sessions in this range.</p></div>
@@ -173,7 +208,8 @@
       <div class="bars">
         {#each buckets as bucket (bucket.key)}
           <div class="bar-wrap" title={`${bucket.key}: ${bucket.value}`}>
-            <span style={`height: ${Math.max(4, (bucket.value / maxValue(buckets)) * 72)}px`}></span>
+            <span style={`height: ${Math.max(4, (bucket.value / maxValue(buckets)) * 72)}px`}
+            ></span>
             <small>{bucket.key.slice(5)}</small>
           </div>
         {/each}
