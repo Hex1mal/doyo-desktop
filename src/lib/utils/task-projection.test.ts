@@ -25,14 +25,7 @@ function node(partial: Partial<Node> & Pick<Node, 'id' | 'title' | 'nodeType'>):
   };
 }
 
-function localIso(
-  year: number,
-  month: number,
-  day: number,
-  hours = 0,
-  minutes = 0,
-  seconds = 0,
-) {
+function localIso(year: number, month: number, day: number, hours = 0, minutes = 0, seconds = 0) {
   return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
 }
 
