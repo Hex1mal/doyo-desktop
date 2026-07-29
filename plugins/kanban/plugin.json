@@ -1,0 +1,10 @@
+{
+  "id": "kanban-view",
+  "name": "Kanban Board",
+  "version": "1.0.0",
+  "minApiVersion": 1,
+  "author": "Doyo Core Team",
+  "description": "View tasks as a Kanban board with drag-and-drop columns",
+  "permissions": ["node:read", "node:write", "ui:register-view", "ui:register-command"],
+  "main": "index.js"
+}

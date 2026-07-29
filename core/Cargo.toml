@@ -1,0 +1,19 @@
+[package]
+name = "doyo-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+plugin-runtime = ["rquickjs"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+log.workspace = true
+rusqlite.workspace = true
+rquickjs = { workspace = true, optional = true }
