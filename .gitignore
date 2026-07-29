@@ -56,6 +56,7 @@ screenshots/
 test-results/
 playwright-report/
 coverage/
+*.sarif
 
 # Editor and OS files
 .idea/
