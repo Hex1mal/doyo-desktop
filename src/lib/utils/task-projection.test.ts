@@ -25,6 +25,17 @@ function node(partial: Partial<Node> & Pick<Node, 'id' | 'title' | 'nodeType'>):
   };
 }
 
+function localIso(
+  year: number,
+  month: number,
+  day: number,
+  hours = 0,
+  minutes = 0,
+  seconds = 0,
+) {
+  return new Date(year, month - 1, day, hours, minutes, seconds).toISOString();
+}
+
 describe('task projections', () => {
   it('excludes workspaces and groups from task-only projections', () => {
     const ws = node({ id: 'w', title: 'Work', nodeType: 'Workspace' });
@@ -48,19 +59,15 @@ describe('task projections', () => {
   });
 
   it('uses seven total local calendar days for upcoming', () => {
-    const now = new Date('2026-07-28T12:00:00+08:00');
-    expect(inNextSevenTotalDays('2026-07-28T00:00:00+08:00', now)).toBe(true);
-    expect(inNextSevenTotalDays('2026-08-03T23:59:59+08:00', now)).toBe(true);
-    expect(inNextSevenTotalDays('2026-08-04T00:00:00+08:00', now)).toBe(false);
+    const now = new Date(2026, 6, 28, 12);
+    expect(inNextSevenTotalDays(localIso(2026, 7, 28), now)).toBe(true);
+    expect(inNextSevenTotalDays(localIso(2026, 8, 3, 23, 59, 59), now)).toBe(true);
+    expect(inNextSevenTotalDays(localIso(2026, 8, 4), now)).toBe(false);
   });
 
   it('handles end of month and end of year boundaries', () => {
-    expect(
-      inNextSevenTotalDays('2026-03-01T00:00:00+08:00', new Date('2026-02-28T12:00:00+08:00')),
-    ).toBe(true);
-    expect(
-      inNextSevenTotalDays('2027-01-01T00:00:00+08:00', new Date('2026-12-31T12:00:00+08:00')),
-    ).toBe(true);
+    expect(inNextSevenTotalDays(localIso(2026, 3, 1), new Date(2026, 1, 28, 12))).toBe(true);
+    expect(inNextSevenTotalDays(localIso(2027, 1, 1), new Date(2026, 11, 31, 12))).toBe(true);
   });
 
   it('filters by normalized tags, priority, workspace, and text', () => {
@@ -89,7 +96,7 @@ describe('task projections', () => {
   });
 
   it('groups completed tasks by completion period', () => {
-    const now = new Date('2026-07-28T12:00:00+08:00');
+    const now = new Date(2026, 6, 28, 12);
     const ws = node({ id: 'w', title: 'Work', nodeType: 'Workspace' });
     const today = node({
       id: 'today',
@@ -97,7 +104,7 @@ describe('task projections', () => {
       nodeType: 'Task',
       parentId: 'w',
       isCompleted: true,
-      completedAt: '2026-07-28T02:00:00Z',
+      completedAt: localIso(2026, 7, 28, 10),
     });
     const old = node({
       id: 'old',
@@ -105,7 +112,7 @@ describe('task projections', () => {
       nodeType: 'Task',
       parentId: 'w',
       isCompleted: true,
-      completedAt: '2026-07-01T02:00:00Z',
+      completedAt: localIso(2026, 7, 1, 10),
     });
 
     const projected = projectTasks([ws, today, old], { mode: 'completed', now });
