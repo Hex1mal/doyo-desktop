@@ -1,6 +1,7 @@
 import { commandPaletteStore } from '$lib/stores/command-palette.svelte';
 import { uiStore } from '$lib/stores/ui.svelte';
 import { nodeStore } from '$lib/stores/nodes.svelte';
+import { zoomActionFromKeyboard } from '$lib/utils/zoom';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -45,6 +46,14 @@ export function handleGlobalKeydown(e: KeyboardEvent) {
   // Ctrl/Cmd chords always work — even in inputs
   if (ctrl) {
     const key = e.key.toLowerCase();
+    const zoomAction = zoomActionFromKeyboard(e);
+    if (zoomAction) {
+      e.preventDefault();
+      if (zoomAction === 'in') uiStore.zoomIn();
+      else if (zoomAction === 'out') uiStore.zoomOut();
+      else uiStore.resetZoom();
+      return;
+    }
     if (key === 'k') {
       e.preventDefault();
       commandPaletteStore.open();

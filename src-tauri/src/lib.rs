@@ -236,6 +236,18 @@ fn node_update(
 }
 
 #[tauri::command]
+fn node_replace_properties(
+    state: tauri::State<AppState>,
+    id: String,
+    properties: NodeProperties,
+) -> Result<Node, String> {
+    let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
+    service
+        .replace_properties(&id, properties)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn node_delete(state: tauri::State<AppState>, id: String, permanent: bool) -> Result<(), String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
     service.delete(&id, permanent).map_err(|e| e.to_string())
@@ -285,6 +297,19 @@ fn node_move(
 }
 
 #[tauri::command]
+fn node_move_ordered(
+    state: tauri::State<AppState>,
+    id: String,
+    new_parent_id: Option<String>,
+    target_index: usize,
+) -> Result<(), String> {
+    let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
+    service
+        .move_node_ordered(&id, new_parent_id.as_deref(), target_index)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn node_reorder(
     state: tauri::State<AppState>,
     parent_id: String,
@@ -293,6 +318,14 @@ fn node_reorder(
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
     service
         .reorder_children(&parent_id, &child_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn node_reorder_root(state: tauri::State<AppState>, child_ids: Vec<String>) -> Result<(), String> {
+    let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
+    service
+        .reorder_root_children(&child_ids)
         .map_err(|e| e.to_string())
 }
 
@@ -941,13 +974,16 @@ pub fn run() {
             node_get,
             node_create,
             node_update,
+            node_replace_properties,
             node_delete,
             trash_get_nodes,
             trash_restore,
             trash_empty,
             node_duplicate,
             node_move,
+            node_move_ordered,
             node_reorder,
+            node_reorder_root,
             tree_get_children,
             tree_get_ancestors,
             tree_get_full,

@@ -2,8 +2,12 @@ import {
   treeGetFull,
   nodeCreate,
   nodeUpdate,
+  nodeReplaceProperties,
   nodeDelete,
   nodeMove,
+  nodeMoveOrdered,
+  nodeReorder,
+  nodeReorderRoot,
   nodeSetPriority,
   nodeSetDueDate,
   nodeSetCompletion,
@@ -36,7 +40,16 @@ import {
 } from '$lib/utils/task-projection';
 
 export type ViewMode =
-  'tree' | 'today' | 'inbox' | 'upcoming' | 'completed' | 'trash' | 'tag' | 'filter' | 'search';
+  | 'tree'
+  | 'today'
+  | 'inbox'
+  | 'upcoming'
+  | 'completed'
+  | 'trash'
+  | 'tag'
+  | 'filter'
+  | 'search'
+  | 'favorites';
 
 const state = $state({
   nodes: new Map<string, Node>(),
@@ -197,6 +210,12 @@ function mergedCustom(node: Node, patch: Record<string, unknown>) {
       ? node.properties.custom
       : {};
   return { ...existing, ...patch };
+}
+
+function cleanedProperties(properties: Node['properties']): Node['properties'] {
+  return Object.fromEntries(
+    Object.entries(properties).filter(([, value]) => value !== undefined && value !== ''),
+  ) as Node['properties'];
 }
 
 function selectionOrFocusNode() {
@@ -473,7 +492,32 @@ export const nodeStore = {
 
   selectInWorkspace(id: string) {
     this.setViewMode('tree');
+    const node = state.nodes.get(id);
+    const ancestors = node ? this.getAncestors(id) : [];
+    const workspace =
+      node?.nodeType === 'Workspace' ? node : ancestors.find((n) => n.nodeType === 'Workspace');
     this.setFocusRoot(id);
+    if (workspace) this.expand(workspace.id);
+    this.select(id);
+  },
+
+  openFavoritesView() {
+    uiStore.setActiveModule('workspaces');
+    state.viewMode = 'favorites';
+    state.selectedId = null;
+    state.focusRootId = null;
+    state.selectedTagId = null;
+  },
+
+  revealNode(id: string) {
+    const node = state.nodes.get(id);
+    if (!node || node.deletedAt) return;
+    const ancestors = this.getAncestors(id);
+    const workspace =
+      node.nodeType === 'Workspace' ? node : ancestors.find((n) => n.nodeType === 'Workspace');
+    this.setViewMode('tree');
+    this.setFocusRoot(workspace?.id ?? id);
+    this.expandAncestors(id);
     this.select(id);
   },
 
@@ -907,13 +951,67 @@ export const nodeStore = {
     }
   },
 
-  async setColor(id: string, color: string | undefined) {
+  async replaceProperties(id: string, properties: Node['properties']) {
     try {
-      const updated = await nodeUpdate(id, { properties: { color } });
+      const updated = await nodeReplaceProperties(id, cleanedProperties(properties));
+      this.upsert(updated);
+      return updated;
+    } catch (e) {
+      toast.error('Failed to save properties');
+      console.error(e);
+      return null;
+    }
+  },
+
+  async setColor(id: string, color: string | null) {
+    const node = state.nodes.get(id);
+    if (!node) return;
+    try {
+      const next = { ...node.properties };
+      if (color) next.color = color;
+      else delete next.color;
+      const updated = await nodeReplaceProperties(id, cleanedProperties(next));
       this.upsert(updated);
       state.statusMessage = color ? 'Color updated' : 'Color cleared';
     } catch (e) {
       toast.error('Failed to update color');
+    }
+  },
+
+  async saveScheduling(
+    id: string,
+    input: {
+      dueDate: string | null;
+      reminders?: Node['properties']['reminders'];
+      recurrence?: Node['properties']['recurrence'];
+      estimatedDurationMinutes?: number;
+    },
+  ) {
+    const node = state.nodes.get(id);
+    if (!node || node.nodeType !== 'Task') {
+      toast.error('Select a task or subtask first');
+      return null;
+    }
+    try {
+      const next = { ...node.properties };
+      if (input.dueDate) next.dueDate = input.dueDate;
+      else delete next.dueDate;
+      if (input.reminders && input.reminders.length) next.reminders = input.reminders;
+      else delete next.reminders;
+      if (input.recurrence) next.recurrence = input.recurrence;
+      else delete next.recurrence;
+      if (input.estimatedDurationMinutes && input.estimatedDurationMinutes > 0) {
+        next.estimatedDurationMinutes = input.estimatedDurationMinutes;
+      } else {
+        delete next.estimatedDurationMinutes;
+      }
+      const updated = await nodeReplaceProperties(id, cleanedProperties(next));
+      this.upsert(updated);
+      state.statusMessage = 'Schedule saved';
+      return updated;
+    } catch (e) {
+      toast.error(`Schedule failed: ${String(e)}`);
+      return null;
     }
   },
 
@@ -1201,6 +1299,84 @@ export const nodeStore = {
       state.statusMessage = 'Outdented';
     } catch (e) {
       toast.error('Cannot outdent');
+    }
+  },
+
+  canMoveTo(id: string, targetParentId: string | null): { ok: boolean; reason?: string } {
+    const node = state.nodes.get(id);
+    const target = targetParentId ? state.nodes.get(targetParentId) : null;
+    if (!node) return { ok: false, reason: 'Node not found' };
+    if (node.id === targetParentId) return { ok: false, reason: 'A node cannot contain itself' };
+    if (node.nodeType === 'Workspace' && targetParentId !== null) {
+      return { ok: false, reason: 'Workspace remains a root item' };
+    }
+    if (
+      targetParentId &&
+      descendantsOf(id).some((descendant) => descendant.id === targetParentId)
+    ) {
+      return { ok: false, reason: 'Cannot move into a descendant' };
+    }
+    if (
+      node.nodeType === 'Group' &&
+      !(target?.nodeType === 'Workspace' || target?.nodeType === 'Group')
+    ) {
+      return { ok: false, reason: 'Groups can only move into workspaces or groups' };
+    }
+    if (
+      node.nodeType === 'Task' &&
+      !(
+        target?.nodeType === 'Workspace' ||
+        target?.nodeType === 'Group' ||
+        target?.nodeType === 'Task'
+      )
+    ) {
+      return { ok: false, reason: 'Tasks can only move into workspaces, groups, or tasks' };
+    }
+    if (node.nodeType !== 'Workspace' && !targetParentId) {
+      return { ok: false, reason: 'Only workspaces can be placed at the root' };
+    }
+    return { ok: true };
+  },
+
+  async moveSibling(id: string, direction: -1 | 1) {
+    const node = state.nodes.get(id);
+    if (!node) return false;
+    const siblings = this.getChildren(node.parentId);
+    const index = siblings.findIndex((item) => item.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= siblings.length) return false;
+    const ids = siblings.map((item) => item.id);
+    [ids[index], ids[nextIndex]] = [ids[nextIndex], ids[index]];
+    try {
+      if (node.parentId) await nodeReorder(node.parentId, ids);
+      else await nodeReorderRoot(ids);
+      await this.load();
+      this.select(id);
+      state.statusMessage = direction < 0 ? 'Moved up' : 'Moved down';
+      return true;
+    } catch (e) {
+      toast.error(`Reorder failed: ${String(e)}`);
+      return false;
+    }
+  },
+
+  async moveToParentAt(id: string, targetParentId: string | null, targetIndex = 999999) {
+    const validation = this.canMoveTo(id, targetParentId);
+    if (!validation.ok) {
+      toast.error(validation.reason ?? 'Invalid move');
+      return false;
+    }
+    try {
+      await nodeMoveOrdered(id, targetParentId, targetIndex);
+      await this.load();
+      if (targetParentId) this.expand(targetParentId);
+      this.expandAncestors(id);
+      this.select(id);
+      state.statusMessage = 'Moved';
+      return true;
+    } catch (e) {
+      toast.error(`Move failed: ${String(e)}`);
+      return false;
     }
   },
 

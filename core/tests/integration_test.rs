@@ -212,6 +212,168 @@ fn test_cycle_prevention() {
 }
 
 #[test]
+fn test_replace_properties_persists_color_clear_and_scheduling() {
+    let mut service = setup();
+    let ws = workspace(&mut service, "Work");
+    let task_node = task(&mut service, &ws.id, "Scheduled");
+
+    let mut workspace_props = ws.properties.clone();
+    workspace_props.color = Some("#2563eb".into());
+    let colored_workspace = service
+        .replace_properties(&ws.id, workspace_props.clone())
+        .unwrap();
+    assert_eq!(
+        colored_workspace.properties.color.as_deref(),
+        Some("#2563eb")
+    );
+
+    workspace_props.color = None;
+    let cleared_workspace = service.replace_properties(&ws.id, workspace_props).unwrap();
+    assert!(cleared_workspace.properties.color.is_none());
+
+    let due_date = chrono::DateTime::parse_from_rfc3339("2026-07-30T09:30:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let mut task_props = task_node.properties.clone();
+    task_props.color = Some("#ef4444".into());
+    task_props.due_date = Some(due_date);
+    task_props.estimated_duration_minutes = Some(90);
+    task_props.recurrence = Some(RecurrenceConfig {
+        pattern: "weekly".into(),
+        interval: 1,
+        days: None,
+    });
+    task_props.reminders = Some(vec![ReminderConfig {
+        time: None,
+        offset_minutes: Some(-30),
+        reminder_type: "relative".into(),
+    }]);
+
+    service
+        .replace_properties(&task_node.id, task_props.clone())
+        .unwrap();
+    let loaded = service.get(&task_node.id).unwrap();
+    assert_eq!(loaded.properties.color.as_deref(), Some("#ef4444"));
+    assert_eq!(loaded.properties.due_date, Some(due_date));
+    assert_eq!(loaded.properties.estimated_duration_minutes, Some(90));
+    assert_eq!(
+        loaded
+            .properties
+            .recurrence
+            .as_ref()
+            .map(|rule| rule.pattern.as_str()),
+        Some("weekly")
+    );
+    assert_eq!(
+        loaded
+            .properties
+            .reminders
+            .as_ref()
+            .and_then(|items| items.first())
+            .and_then(|item| item.offset_minutes),
+        Some(-30)
+    );
+}
+
+#[test]
+fn test_workspace_root_reordering_normalizes_positions() {
+    let mut service = setup();
+    let first = workspace(&mut service, "First");
+    let second = workspace(&mut service, "Second");
+    let third = workspace(&mut service, "Third");
+
+    service
+        .reorder_root_children(&[third.id.clone(), first.id.clone(), second.id.clone()])
+        .unwrap();
+    let reordered = service.get_children(None).unwrap();
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|node| node.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Third", "First", "Second"]
+    );
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|node| node.position)
+            .collect::<Vec<_>>(),
+        vec![0.0, 1000.0, 2000.0]
+    );
+
+    service
+        .reorder_root_children(&[second.id.clone(), third.id.clone(), first.id.clone()])
+        .unwrap();
+    let repeated = service.get_children(None).unwrap();
+    assert_eq!(
+        repeated
+            .iter()
+            .map(|node| node.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Second", "Third", "First"]
+    );
+    let mut positions = repeated
+        .iter()
+        .map(|node| node.position)
+        .collect::<Vec<_>>();
+    positions.dedup();
+    assert_eq!(positions.len(), repeated.len());
+}
+
+#[test]
+fn test_ordered_cross_parent_moves_preserve_hierarchy_and_positions() {
+    let mut service = setup();
+    let ws = workspace(&mut service, "Work");
+    let other_ws = workspace(&mut service, "Other");
+    let group_a = group(&mut service, &ws.id, "Group A");
+    let group_b = group(&mut service, &ws.id, "Group B");
+    let subgroup = group(&mut service, &group_a.id, "Subgroup");
+    let first_task = task(&mut service, &group_a.id, "First task");
+    let second_task = task(&mut service, &group_b.id, "Second task");
+    let subtask = task(&mut service, &first_task.id, "Nested subtask");
+
+    service
+        .move_node_ordered(&subgroup.id, Some(&group_b.id), 0)
+        .unwrap();
+    let group_b_children = service.get_children(Some(&group_b.id)).unwrap();
+    assert_eq!(group_b_children[0].id, subgroup.id);
+    assert_eq!(group_b_children[0].position, 0.0);
+    assert_eq!(group_b_children[1].id, second_task.id);
+    assert_eq!(group_b_children[1].position, 1000.0);
+
+    service
+        .move_node_ordered(&first_task.id, Some(&second_task.id), 0)
+        .unwrap();
+    assert_eq!(
+        service.get(&first_task.id).unwrap().parent_id,
+        Some(second_task.id.clone())
+    );
+    assert_eq!(
+        service.get(&subtask.id).unwrap().parent_id,
+        Some(first_task.id.clone())
+    );
+
+    service
+        .move_node_ordered(&first_task.id, Some(&other_ws.id), 0)
+        .unwrap();
+    assert_eq!(
+        service.get(&first_task.id).unwrap().parent_id,
+        Some(other_ws.id.clone())
+    );
+    assert_eq!(
+        service.get(&subtask.id).unwrap().parent_id,
+        Some(first_task.id.clone())
+    );
+
+    assert!(service
+        .move_node_ordered(&group_b.id, Some(&subgroup.id), 0)
+        .is_err());
+    assert!(service
+        .move_node_ordered(&group_b.id, Some(&first_task.id), 0)
+        .is_err());
+}
+
+#[test]
 fn test_soft_delete_cascades_to_children() {
     let mut service = setup();
     let ws = workspace(&mut service, "Work");

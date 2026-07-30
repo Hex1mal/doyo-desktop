@@ -10,7 +10,10 @@ Doyo works offline and stores data locally. It does not require an account, subs
 
 - Recursive hierarchy: Workspace -> Group/Subgroup -> Task/Subtask with unlimited depth.
 - Smart views: Inbox, Today, Next 7 Days, Completed, Trash, Search, Tags, and Filters.
+- Favorites view for pinned workspace, group, task, and subtask shortcuts.
+- Per-node colors, persistent workspace ordering, and drag/drop hierarchy moves.
 - Calendar: Month, Week, Day, and Agenda views with task scheduling and time blocks.
+- Desktop scheduling modal for due date, typed time, reminder, repeat, and estimated duration.
 - Kanban and Timeline views over the same task records.
 - Productivity tools: Pomodoro, Stopwatch, Timeboxing, Eisenhower Matrix, Eat the Frog, Flowtime, GTD, and Pareto.
 - Habits and Countdowns with reminders.
@@ -60,6 +63,9 @@ npm run tauri dev
 
 - `Ctrl+K`: Command palette
 - `Ctrl+P`: Quick open
+- `Ctrl++` or `Ctrl+=`: Zoom in
+- `Ctrl+-`: Zoom out
+- `Ctrl+0`: Reset zoom
 - `Enter`: Create or confirm where supported
 - `Space`: Select focused node
 - `Shift+F10` or Menu key: Open the context menu for the selected row

@@ -50,6 +50,18 @@ Schema versions are recorded in `schema_version`. The current release uses versi
 
 Backend validation prevents invalid parent/child relationships and cycles.
 
+## Task Scheduling Properties
+
+Task scheduling data is stored on the original task record in `nodes.properties`.
+
+- `dueDate`: due date or due date/time.
+- `startDate`: optional task start date used by timeline-style planning.
+- `reminders`: reminder configuration associated with the task schedule.
+- `recurrence`: repeat rule such as daily, weekly, or monthly.
+- `estimatedDurationMinutes`: nullable planned-duration estimate in minutes.
+
+Estimated duration is planning metadata. It is not the same as historical Pomodoro, Stopwatch, or Focus session duration, which is stored in `focus_sessions`.
+
 ## Backups
 
 Doyo backups are SQLite database copies stored under:

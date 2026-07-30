@@ -24,6 +24,7 @@ import type {
   UpdateTimeBlockInput,
   UpsertHabitLogInput,
   StopFocusInput,
+  ReminderConfig,
 } from '$lib/types/node';
 
 type RawRecord = Record<string, unknown>;
@@ -43,13 +44,25 @@ function value<T>(raw: RawRecord, camel: string, snake: string, fallback: T): T 
   return (raw[camel] ?? raw[snake] ?? fallback) as T;
 }
 
-function normalizeProperties(raw: unknown): Node['properties'] {
+function normalizeReminders(raw: unknown): ReminderConfig[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((item) => {
+    const reminder = item && typeof item === 'object' ? (item as RawRecord) : {};
+    return {
+      time: value(reminder, 'time', 'time', null),
+      offsetMinutes: value(reminder, 'offsetMinutes', 'offset_minutes', null),
+      type: value(reminder, 'type', 'type', 'relative'),
+    };
+  });
+}
+
+export function normalizeProperties(raw: unknown): Node['properties'] {
   const props = raw && typeof raw === 'object' ? (raw as RawRecord) : {};
   return {
     dueDate: value(props, 'dueDate', 'due_date', null),
     startDate: value(props, 'startDate', 'start_date', null),
     priority: value(props, 'priority', 'priority', undefined),
-    reminders: value(props, 'reminders', 'reminders', undefined),
+    reminders: normalizeReminders(value(props, 'reminders', 'reminders', undefined)),
     recurrence: value(props, 'recurrence', 'recurrence', null),
     estimatedDurationMinutes: value(
       props,
@@ -65,14 +78,20 @@ function normalizeProperties(raw: unknown): Node['properties'] {
   };
 }
 
-function denormalizeProperties(raw: Partial<Node['properties']>): Record<string, unknown> {
+export function denormalizeProperties(raw: Partial<Node['properties']>): Record<string, unknown> {
   const props = raw as RawRecord;
   const normalized: Record<string, unknown> = {};
   for (const [key, fieldValue] of Object.entries(props)) {
     if (key === 'dueDate') normalized.due_date = fieldValue;
     else if (key === 'startDate') normalized.start_date = fieldValue;
     else if (key === 'estimatedDurationMinutes') normalized.estimated_duration_minutes = fieldValue;
-    else normalized[key] = fieldValue;
+    else if (key === 'reminders' && Array.isArray(fieldValue)) {
+      normalized.reminders = fieldValue.map((item) => ({
+        time: item.time ?? null,
+        offset_minutes: item.offsetMinutes ?? null,
+        type: item.type,
+      }));
+    } else normalized[key] = fieldValue;
   }
   return normalized;
 }
@@ -290,6 +309,18 @@ export async function nodeUpdate(id: string, changes: UpdateNodeInput): Promise<
   );
 }
 
+export async function nodeReplaceProperties(
+  id: string,
+  properties: Node['properties'],
+): Promise<Node> {
+  return normalizeNode(
+    await invoke('node_replace_properties', {
+      id,
+      properties: denormalizeProperties(properties),
+    }),
+  );
+}
+
 export async function nodeDelete(id: string, permanent: boolean = false): Promise<void> {
   return invoke('node_delete', { id, permanent });
 }
@@ -322,8 +353,20 @@ export async function nodeMove(
   return invoke('node_move', { id, newParentId, position });
 }
 
+export async function nodeMoveOrdered(
+  id: string,
+  newParentId: string | null,
+  targetIndex: number,
+): Promise<void> {
+  return invoke('node_move_ordered', { id, newParentId, targetIndex });
+}
+
 export async function nodeReorder(parentId: string, childIds: string[]): Promise<void> {
   return invoke('node_reorder', { parentId, childIds });
+}
+
+export async function nodeReorderRoot(childIds: string[]): Promise<void> {
+  return invoke('node_reorder_root', { childIds });
 }
 
 export async function treeGetChildren(parentId: string | null): Promise<Node[]> {

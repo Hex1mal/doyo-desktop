@@ -57,6 +57,10 @@
     nodeStore.setFocusRoot(null);
   }
 
+  function openFavorites() {
+    nodeStore.openFavoritesView();
+  }
+
   function focusOnEdit(node: HTMLInputElement) {
     node.focus();
   }
@@ -86,6 +90,8 @@
   <nav class="nav">
     <button
       class="nav-item"
+      title="Today"
+      aria-label="Today"
       class:active={nodeStore.viewMode === 'today' && uiStore.activeModule === 'today'}
       onclick={() => openView('today', 'today')}
     >
@@ -96,6 +102,8 @@
     </button>
     <button
       class="nav-item"
+      title="Inbox"
+      aria-label="Inbox"
       class:active={nodeStore.viewMode === 'inbox' && uiStore.activeModule === 'inbox'}
       onclick={() => openView('inbox', 'inbox')}
     >
@@ -105,6 +113,8 @@
     </button>
     <button
       class="nav-item"
+      title="Next 7 Days"
+      aria-label="Next 7 Days"
       class:active={nodeStore.viewMode === 'upcoming' && uiStore.activeModule === 'upcoming'}
       onclick={() => openView('upcoming', 'upcoming')}
     >
@@ -114,6 +124,8 @@
     </button>
     <button
       class="nav-item"
+      title="Completed"
+      aria-label="Completed"
       class:active={nodeStore.viewMode === 'completed'}
       onclick={() => {
         uiStore.setActiveModule('workspaces');
@@ -128,6 +140,8 @@
     </button>
     <button
       class="nav-item"
+      title="Trash"
+      aria-label="Trash"
       class:active={nodeStore.viewMode === 'trash'}
       onclick={() => {
         uiStore.setActiveModule('workspaces');
@@ -141,13 +155,20 @@
       <span>Trash</span>
       {#if trashCount > 0}<span class="badge">{trashCount}</span>{/if}
     </button>
-    <button class="nav-item" onclick={() => uiStore.openQuickOpen()}>
+    <button
+      class="nav-item"
+      title="Search"
+      aria-label="Search"
+      onclick={() => uiStore.openQuickOpen()}
+    >
       <span class="icon">⌕</span>
       <span>Search</span>
       <kbd>Ctrl+P</kbd>
     </button>
     <button
       class="nav-item"
+      title="Filters"
+      aria-label="Filters"
       class:active={nodeStore.viewMode === 'filter'}
       onclick={() => {
         uiStore.setActiveModule('workspaces');
@@ -159,19 +180,22 @@
       <span class="icon">▦</span>
       <span>Filters</span>
     </button>
-    <button class="nav-item" onclick={() => commandPaletteStore.open()}>
+    <button
+      class="nav-item"
+      title="Commands"
+      aria-label="Commands"
+      onclick={() => commandPaletteStore.open()}
+    >
       <span class="icon">⌘</span>
       <span>Commands</span>
       <kbd>Ctrl+K</kbd>
     </button>
     <button
       class="nav-item"
-      onclick={() => {
-        uiStore.setActiveModule('workspaces');
-        nodeStore.setViewMode('tree');
-        const first = favorites[0];
-        if (first) nodeStore.selectInWorkspace(first.id);
-      }}
+      title="Favorites"
+      aria-label="Favorites"
+      class:active={nodeStore.viewMode === 'favorites'}
+      onclick={openFavorites}
     >
       <span class="icon">★</span>
       <span>Favorites</span>
@@ -179,112 +203,115 @@
     </button>
   </nav>
 
-  <div class="section-label">
-    <span>Tags</span>
-    <div class="section-actions">
+  <details class="compact-panel">
+    <summary>
+      <span>Tags</span>
+      <span class="summary-count">{nodeStore.tags.length}</span>
       <button class="add" title="Manage tags" onclick={openTagManager}>⚙</button>
       <button class="add" title="Refresh tags" onclick={() => nodeStore.loadTags()}>↻</button>
-    </div>
-  </div>
-
-  <div class="tags">
-    {#each nodeStore.tags as tag (tag.id)}
-      <div
-        class="tag-row"
-        class:active={nodeStore.selectedTagId === tag.id && nodeStore.viewMode === 'tag'}
-      >
-        <button
-          class="tag-select"
-          onclick={() => {
-            uiStore.setActiveModule('workspaces');
-            nodeStore.setSelectedTag(tag.id);
-            nodeStore.select(null);
-            nodeStore.setFocusRoot(null);
-          }}
+    </summary>
+    <div class="tags">
+      {#each nodeStore.tags as tag (tag.id)}
+        <div
+          class="tag-row"
+          class:active={nodeStore.selectedTagId === tag.id && nodeStore.viewMode === 'tag'}
         >
-          <span class="tag-dot" style={tag.color ? `background: ${tag.color}` : ''}></span>
-          <span>{tag.name}</span>
-        </button>
-        <button
-          class="row-action danger"
-          title="Delete tag"
-          onclick={(e) => {
-            e.stopPropagation();
-            nodeStore.deleteTag(tag.id);
-          }}>×</button
-        >
-      </div>
-    {/each}
-    {#if nodeStore.tags.length === 0}
-      <div class="empty compact">No tags yet</div>
-    {/if}
-  </div>
-
-  <div class="section-label">
-    <span>Saved Filters</span>
-    <button class="add" title="Refresh filters" onclick={() => savedFilterStore.load()}>↻</button>
-  </div>
-
-  <div class="filters">
-    {#each savedFilterStore.filters as filter (filter.id)}
-      <div
-        class="filter-row"
-        class:active={savedFilterStore.selectedId === filter.id && nodeStore.viewMode === 'filter'}
-      >
-        {#if editingFilterId === filter.id}
-          <form
-            class="filter-rename-form"
-            onsubmit={(e) => {
-              e.preventDefault();
-              commitRenameFilter();
-            }}
-          >
-            <input
-              class="filter-rename-input"
-              bind:value={editingFilterName}
-              onblur={commitRenameFilter}
-              onkeydown={(e) => {
-                if (e.key === 'Escape') {
-                  editingFilterId = null;
-                  editingFilterName = '';
-                }
-              }}
-              use:focusOnEdit
-            />
-          </form>
-        {:else}
           <button
-            class="filter-select"
+            class="tag-select"
             onclick={() => {
-              savedFilterStore.select(filter.id);
-              openView('workspaces', 'filter');
+              uiStore.setActiveModule('workspaces');
+              nodeStore.setSelectedTag(tag.id);
+              nodeStore.select(null);
+              nodeStore.setFocusRoot(null);
             }}
           >
-            <span>{filter.name}</span>
+            <span class="tag-dot" style={tag.color ? `background: ${tag.color}` : ''}></span>
+            <span>{tag.name}</span>
           </button>
           <button
-            class="row-action"
-            title="Rename filter"
-            onclick={(e) => {
-              e.stopPropagation();
-              startRenameFilter(filter.id, filter.name);
-            }}>✎</button
-          >
-          <button
             class="row-action danger"
-            title="Delete filter"
+            title="Delete tag"
             onclick={(e) => {
               e.stopPropagation();
-              savedFilterStore.delete(filter.id);
+              nodeStore.deleteTag(tag.id);
             }}>×</button
           >
-        {/if}
-      </div>
-    {/each}
-    {#if savedFilterStore.filters.length === 0}
-      <div class="empty compact">No saved filters</div>
-    {/if}
-  </div>
+        </div>
+      {/each}
+      {#if nodeStore.tags.length === 0}
+        <div class="empty compact">No tags yet</div>
+      {/if}
+    </div>
+  </details>
+
+  <details class="compact-panel">
+    <summary>
+      <span>Saved Filters</span>
+      <span class="summary-count">{savedFilterStore.filters.length}</span>
+      <button class="add" title="Refresh filters" onclick={() => savedFilterStore.load()}>↻</button>
+    </summary>
+    <div class="filters">
+      {#each savedFilterStore.filters as filter (filter.id)}
+        <div
+          class="filter-row"
+          class:active={savedFilterStore.selectedId === filter.id &&
+            nodeStore.viewMode === 'filter'}
+        >
+          {#if editingFilterId === filter.id}
+            <form
+              class="filter-rename-form"
+              onsubmit={(e) => {
+                e.preventDefault();
+                commitRenameFilter();
+              }}
+            >
+              <input
+                class="filter-rename-input"
+                bind:value={editingFilterName}
+                onblur={commitRenameFilter}
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') {
+                    editingFilterId = null;
+                    editingFilterName = '';
+                  }
+                }}
+                use:focusOnEdit
+              />
+            </form>
+          {:else}
+            <button
+              class="filter-select"
+              onclick={() => {
+                savedFilterStore.select(filter.id);
+                openView('workspaces', 'filter');
+              }}
+            >
+              <span>{filter.name}</span>
+            </button>
+            <button
+              class="row-action"
+              title="Rename filter"
+              onclick={(e) => {
+                e.stopPropagation();
+                startRenameFilter(filter.id, filter.name);
+              }}>✎</button
+            >
+            <button
+              class="row-action danger"
+              title="Delete filter"
+              onclick={(e) => {
+                e.stopPropagation();
+                savedFilterStore.delete(filter.id);
+              }}>×</button
+            >
+          {/if}
+        </div>
+      {/each}
+      {#if savedFilterStore.filters.length === 0}
+        <div class="empty compact">No saved filters</div>
+      {/if}
+    </div>
+  </details>
 
   <div class="section-label">
     <span>Workspaces</span>
@@ -358,20 +385,35 @@
   .nav {
     padding: 8px;
     border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
   }
   .nav-item {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    gap: 0;
     width: 100%;
-    padding: 8px 10px;
+    min-width: 0;
+    height: 32px;
+    padding: 0;
     border: none;
     background: none;
     cursor: pointer;
     border-radius: 6px;
     font-size: var(--text-sm);
     color: var(--text-primary);
-    text-align: left;
+    text-align: center;
+  }
+  .nav-item > span:not(.icon):not(.badge) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .nav-item:hover {
     background: var(--bg-hover);
@@ -387,7 +429,10 @@
     opacity: 0.7;
   }
   .badge {
-    margin-left: auto;
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    margin-left: 0;
     font-size: 10px;
     background: var(--bg-active);
     padding: 1px 6px;
@@ -399,12 +444,48 @@
     color: var(--danger);
   }
   kbd {
+    display: none;
     margin-left: auto;
     font-size: 10px;
     padding: 1px 4px;
     background: var(--bg-active);
     border-radius: 3px;
     color: var(--text-tertiary);
+  }
+  .compact-panel {
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .compact-panel summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+  }
+  .compact-panel summary::-webkit-details-marker {
+    display: none;
+  }
+  .compact-panel summary::before {
+    content: '▸';
+    font-size: 10px;
+  }
+  .compact-panel[open] summary::before {
+    content: '▾';
+  }
+  .summary-count {
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--bg-active);
+    color: var(--text-tertiary);
+    font-size: 10px;
   }
   .section-label {
     display: flex;
@@ -416,10 +497,6 @@
     letter-spacing: 0.04em;
     color: var(--text-tertiary);
     font-weight: 600;
-  }
-  .section-actions {
-    display: flex;
-    gap: 3px;
   }
   .add {
     border: none;
@@ -436,16 +513,14 @@
     color: white;
   }
   .tags {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 0 8px 8px;
+  }
+  .filters {
     max-height: 140px;
     overflow-y: auto;
     padding: 0 8px 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  .filters {
-    max-height: 120px;
-    overflow-y: auto;
-    padding: 0 8px 8px;
-    border-bottom: 1px solid var(--border);
   }
   .tag-row {
     display: flex;
@@ -564,6 +639,7 @@
   }
   .tree {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 0 6px 12px;
   }

@@ -109,6 +109,19 @@ impl NodeService {
         Ok(node)
     }
 
+    pub fn replace_properties(&mut self, id: &str, properties: NodeProperties) -> Result<Node> {
+        let before = self.repo.get(id)?;
+        handler::get_handler(&before.node_type).validate_properties(&properties)?;
+        let node = self.repo.replace_properties(id, &properties)?;
+        self.activity_repo.log(
+            id,
+            "updated",
+            &serde_json::json!({"properties": "replaced"}),
+        )?;
+        self.undo_stack.push_update(id.to_string(), before);
+        Ok(node)
+    }
+
     pub fn delete(&mut self, id: &str, permanent: bool) -> Result<()> {
         let node = if permanent {
             self.repo.get_any(id)?
@@ -205,11 +218,59 @@ impl NodeService {
         Ok(())
     }
 
+    pub fn move_node_ordered(
+        &mut self,
+        id: &str,
+        new_parent_id: Option<&str>,
+        target_index: usize,
+    ) -> Result<()> {
+        let before = self.repo.get(id)?;
+        self.validate_parent_rule(&before.node_type, new_parent_id)?;
+        let before_parent_id = before.parent_id.clone();
+        let before_position = before.position;
+        self.repo
+            .move_node_ordered(id, new_parent_id, target_index)?;
+        self.activity_repo.log(
+            id,
+            "moved",
+            &serde_json::json!({
+                "fromParentId": before_parent_id,
+                "toParentId": new_parent_id,
+                "fromPosition": before_position,
+                "targetIndex": target_index
+            }),
+        )?;
+        self.undo_stack
+            .push_move(id.to_string(), before.parent_id.clone(), before.position);
+        Ok(())
+    }
+
     pub fn reorder_children(&mut self, parent_id: &str, child_ids: &[String]) -> Result<()> {
         self.repo.reorder_children(parent_id, child_ids)?;
         self.activity_repo.log(
             parent_id,
             "reordered",
+            &serde_json::json!({"childIds": child_ids}),
+        )?;
+        Ok(())
+    }
+
+    pub fn reorder_root_children(&mut self, child_ids: &[String]) -> Result<()> {
+        if child_ids.is_empty() {
+            return Ok(());
+        }
+        for child_id in child_ids {
+            let node = self.repo.get(child_id)?;
+            if node.parent_id.is_some() || node.node_type != NodeType::Workspace {
+                return Err(Error::Validation(
+                    "Only root workspaces can be reordered at the root".into(),
+                ));
+            }
+        }
+        self.repo.reorder_root_children(child_ids)?;
+        self.activity_repo.log(
+            child_ids.first().map_or("root", String::as_str),
+            "reordered-root",
             &serde_json::json!({"childIds": child_ids}),
         )?;
         Ok(())

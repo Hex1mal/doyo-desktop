@@ -129,6 +129,9 @@
   <DueDatePrompt />
 {/if}
 <ToastHost />
+{#if uiStore.zoomFeedback}
+  <div class="zoom-feedback" role="status">{uiStore.zoomFeedback}</div>
+{/if}
 
 <style>
   .root {
@@ -230,5 +233,20 @@
     color: var(--text-primary);
     border-color: var(--accent);
     outline: none;
+  }
+  .zoom-feedback {
+    position: fixed;
+    left: 50%;
+    bottom: 34px;
+    transform: translateX(-50%);
+    z-index: 1300;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-modal);
+    color: var(--text-primary);
+    padding: 7px 14px;
+    font-size: var(--text-sm);
+    font-weight: 800;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   }
 </style>

@@ -1,4 +1,6 @@
 import { settingsGet, settingsSet } from '$lib/api/client';
+import { clampZoom, nextZoom } from '$lib/utils/zoom';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 export type ActiveModule =
   | 'today'
@@ -65,6 +67,7 @@ type UiPrefs = {
   kanbanPrefs: KanbanPrefs;
   timelinePrefs: TimelinePrefs;
   focusPrefs: FocusPrefs;
+  zoomLevel: number;
 };
 
 const PREF_KEY = 'doyo.uiPrefs.v1';
@@ -101,6 +104,7 @@ const DEFAULT_PREFS: UiPrefs = {
     longBreakMinutes: 15,
     longBreakInterval: 4,
   },
+  zoomLevel: 1,
 };
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -150,6 +154,7 @@ function getInitialPrefs(): UiPrefs {
         ...DEFAULT_PREFS.focusPrefs,
         ...(parsed.focusPrefs ?? {}),
       },
+      zoomLevel: clampZoom(parsed.zoomLevel ?? DEFAULT_PREFS.zoomLevel),
     };
   } catch {
     return DEFAULT_PREFS;
@@ -171,6 +176,8 @@ const state = $state({
   kanbanPrefs: initialPrefs.kanbanPrefs,
   timelinePrefs: initialPrefs.timelinePrefs,
   focusPrefs: initialPrefs.focusPrefs,
+  zoomLevel: initialPrefs.zoomLevel,
+  zoomFeedback: '',
   moveDialogNodeId: null as string | null,
   configDialogNodeId: null as string | null,
   focusMode: false,
@@ -192,11 +199,37 @@ function persistPrefs() {
     kanbanPrefs: state.kanbanPrefs,
     timelinePrefs: state.timelinePrefs,
     focusPrefs: state.focusPrefs,
+    zoomLevel: state.zoomLevel,
   };
   localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
   settingsSet(SETTINGS_PREF_KEY, prefs).catch(() => {
     /* localStorage remains the fallback when the backend is not ready. */
   });
+}
+
+let zoomFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showZoomFeedback() {
+  state.zoomFeedback = `Zoom: ${Math.round(state.zoomLevel * 100)}%`;
+  clearTimeout(zoomFeedbackTimer);
+  zoomFeedbackTimer = setTimeout(() => {
+    state.zoomFeedback = '';
+  }, 900);
+}
+
+async function applyZoom(level: number, feedback = false) {
+  state.zoomLevel = clampZoom(level);
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--app-zoom', String(state.zoomLevel));
+  }
+  try {
+    await getCurrentWebview().setZoom(state.zoomLevel);
+  } catch {
+    if (typeof document !== 'undefined') {
+      document.body.style.zoom = String(state.zoomLevel);
+    }
+  }
+  if (feedback) showZoomFeedback();
 }
 
 function applyTheme(theme: 'light' | 'dark') {
@@ -227,6 +260,7 @@ function applyPrefs(prefs: Partial<UiPrefs>) {
   state.kanbanPrefs = { ...state.kanbanPrefs, ...(prefs.kanbanPrefs ?? {}) };
   state.timelinePrefs = { ...state.timelinePrefs, ...(prefs.timelinePrefs ?? {}) };
   state.focusPrefs = { ...state.focusPrefs, ...(prefs.focusPrefs ?? {}) };
+  state.zoomLevel = clampZoom(prefs.zoomLevel ?? state.zoomLevel);
 }
 
 export const uiStore = {
@@ -266,6 +300,12 @@ export const uiStore = {
   get focusPrefs() {
     return state.focusPrefs;
   },
+  get zoomLevel() {
+    return state.zoomLevel;
+  },
+  get zoomFeedback() {
+    return state.zoomFeedback;
+  },
   get moveDialogNodeId() {
     return state.moveDialogNodeId;
   },
@@ -295,6 +335,7 @@ export const uiStore = {
       if (theme === 'light' || theme === 'dark') {
         applyTheme(theme);
       }
+      await applyZoom(state.zoomLevel);
       return true;
     } catch {
       return false;
@@ -454,6 +495,23 @@ export const uiStore = {
     persistPrefs();
   },
 
+  setZoomLevel(level: number, feedback = true) {
+    applyZoom(level, feedback).catch(() => {});
+    persistPrefs();
+  },
+
+  zoomIn() {
+    this.setZoomLevel(nextZoom(state.zoomLevel, 'in'));
+  },
+
+  zoomOut() {
+    this.setZoomLevel(nextZoom(state.zoomLevel, 'out'));
+  },
+
+  resetZoom() {
+    this.setZoomLevel(1);
+  },
+
   openMoveDialog(id: string) {
     state.moveDialogNodeId = id;
   },
@@ -497,4 +555,5 @@ export const uiStore = {
 
 export function initTheme() {
   applyTheme(state.theme);
+  applyZoom(state.zoomLevel).catch(() => {});
 }

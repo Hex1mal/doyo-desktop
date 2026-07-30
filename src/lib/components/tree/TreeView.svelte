@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import { groupProjection, type GroupMode, type SortMode } from '$lib/utils/task-projection';
@@ -38,6 +39,7 @@
   });
   let tagItems = $derived(nodeStore.getTaskProjection('tag', listSort));
   let filteredItems = $derived(nodeStore.getFilteredProjection(listSort));
+  let favoriteItems = $derived(nodeStore.getFavorites());
   let completedGroups = $derived(
     groupProjection(completedSearchItems, listGroup === 'none' ? 'completionPeriod' : listGroup),
   );
@@ -63,11 +65,30 @@
   let newTagName = $state('');
   let newTagColor = $state('#64748B');
   let didLoadSavedFilters = false;
+  let treeScrollEl: HTMLDivElement | undefined = $state();
+  let lastWorkspaceScope = $state<string | null>(null);
 
   $effect(() => {
     if (didLoadSavedFilters) return;
     didLoadSavedFilters = true;
     savedFilterStore.load();
+  });
+
+  $effect(() => {
+    const root = nodeStore.focusRootId ? nodeStore.get(nodeStore.focusRootId) : null;
+    const workspace =
+      root?.nodeType === 'Workspace'
+        ? root
+        : root
+          ? nodeStore.getAncestors(root.id).find((node) => node.nodeType === 'Workspace')
+          : null;
+    const workspaceId = workspace?.id ?? null;
+    if (workspaceId && workspaceId !== lastWorkspaceScope) {
+      lastWorkspaceScope = workspaceId;
+      tick().then(() => {
+        if (treeScrollEl) treeScrollEl.scrollTop = 0;
+      });
+    }
   });
 
   function handleSearchInput(value: string) {
@@ -82,6 +103,10 @@
     nodeStore.setViewMode('tree');
     nodeStore.expandAncestors(id);
     nodeStore.select(id);
+  }
+
+  function revealNode(id: string) {
+    nodeStore.revealNode(id);
   }
 
   function plainSnippet(snippet: string) {
@@ -689,6 +714,42 @@
         <div class="view-hint">Type to search full text over titles, bodies, and tags.</div>
       {/if}
     </div>
+  {:else if nodeStore.viewMode === 'favorites'}
+    <div class="view-panel">
+      <div class="view-heading">
+        <h2 class="view-title">Favorites</h2>
+      </div>
+      {#if favoriteItems.length === 0}
+        <div class="empty-state small">
+          <p>No favorites yet</p>
+          <span>Add a favorite from a node toolbar or context menu.</span>
+        </div>
+      {:else}
+        <div class="favorite-list">
+          {#each favoriteItems as item (item.id)}
+            <div class="favorite-row">
+              <span
+                class="favorite-accent"
+                style={item.properties.color ? `--node-color: ${item.properties.color}` : ''}
+              ></span>
+              <button class="favorite-open" onclick={() => revealNode(item.id)}>
+                <span class="favorite-title">{item.title || 'Untitled'}</span>
+              </button>
+              <span class="favorite-kind">{nodeStore.getKindLabel(item)}</span>
+              <span class="favorite-path">{nodeStore.getPath(item.id)}</span>
+              {#if item.nodeType === 'Task'}
+                <span class="favorite-state">{item.isCompleted ? 'Done' : 'Open'}</span>
+              {/if}
+              <button
+                class="favorite-remove"
+                title="Remove favorite"
+                onclick={() => nodeStore.setFavorite(item.id, false)}>★</button
+              >
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   {:else if list.length === 0 && !activeRoot}
     <div class="empty-state">
       <div class="empty-icon">🌱</div>
@@ -754,7 +815,7 @@
           >
             {selected.properties.favorite ? '★' : '☆'}
           </button>
-          {#if selected.nodeType === 'Task' || selected.nodeType === 'Group'}
+          {#if selected.nodeType === 'Task'}
             <button
               class="tb-btn icon"
               title="Set due date (Ctrl+D)"
@@ -777,7 +838,7 @@
     </div>
 
     <!-- TREE LIST -->
-    <div class="tree-scroll" role="tree" aria-label="Nodes">
+    <div class="tree-scroll" bind:this={treeScrollEl} role="tree" aria-label="Nodes">
       {#if list.length === 0 && activeRoot}
         <div class="empty-inside">
           <p>No items inside {activeRoot.title || 'this node'}.</p>
@@ -952,6 +1013,66 @@
     color: var(--text-tertiary);
     font-size: 11px;
     min-width: 0;
+  }
+  .favorite-list {
+    display: grid;
+    gap: 8px;
+  }
+  .favorite-row {
+    display: grid;
+    grid-template-columns: 4px minmax(140px, 1fr) auto minmax(0, 280px) auto auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-panel);
+    padding: 8px 10px;
+  }
+  .favorite-row:hover {
+    background: var(--bg-hover);
+  }
+  .favorite-accent {
+    width: 4px;
+    align-self: stretch;
+    border-radius: 4px;
+    background: var(--node-color, var(--accent));
+  }
+  .favorite-open {
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    padding: 3px 0;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .favorite-title,
+  .favorite-path {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .favorite-kind,
+  .favorite-state {
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .favorite-path {
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+  }
+  .favorite-remove {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg-input);
+    color: var(--accent);
+    cursor: pointer;
+    padding: 3px 8px;
   }
   .density-compact :global(.tree-node) {
     height: 28px;

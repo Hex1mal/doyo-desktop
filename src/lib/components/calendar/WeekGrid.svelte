@@ -2,6 +2,7 @@
   import { calendarStore } from '$lib/stores/calendar.svelte';
   import type { Node, TimeBlock } from '$lib/types/node';
   import { addDays, blocksByDay, localDayKey, tasksByDay, weekStart } from '$lib/utils/calendar';
+  import { onMount } from 'svelte';
   import CalendarItem from './CalendarItem.svelte';
 
   let {
@@ -30,6 +31,15 @@
   );
   let taskMap = $derived(tasksByDay(tasks, showCompleted));
   let blockMap = $derived(blocksByDay(blocks));
+  let today = $state(new Date());
+  let todayKey = $derived(localDayKey(today));
+
+  onMount(() => {
+    const timer = setInterval(() => {
+      today = new Date();
+    }, 60_000);
+    return () => clearInterval(timer);
+  });
 
   function timedItems(day: Date, hour: number) {
     const key = localDayKey(day);
@@ -59,9 +69,10 @@
 >
   <div class="corner"></div>
   {#each days as day}
-    <div class="day-header">
+    <div class="day-header" class:today={localDayKey(day) === todayKey}>
       <strong>{day.toLocaleDateString(undefined, { weekday: 'short' })}</strong>
       <span>{day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+      {#if localDayKey(day) === todayKey}<small>Today</small>{/if}
     </div>
   {/each}
 
@@ -117,6 +128,15 @@
     top: 0;
     z-index: 1;
     background: var(--bg-panel);
+  }
+  .day-header.today {
+    box-shadow: inset 0 -2px 0 var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, var(--bg-panel));
+  }
+  .day-header small {
+    color: var(--accent);
+    font-size: 9px;
+    font-weight: 800;
   }
   .day-header {
     min-height: 42px;
