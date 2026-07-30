@@ -162,35 +162,18 @@ function rebuildFromList(list: Node[]) {
   }
   state.nodes = map;
   state.childrenByParent = buildChildrenIndex(map);
-  // Keep previously expanded ids that still exist
+  // Keep previously expanded ids that still exist. On first load the set is
+  // empty, so every workspace starts collapsed rather than auto-expanding a
+  // fixed depth of the hierarchy.
   const nextExpanded = new Set<string>();
   for (const id of state.expandedIds) {
     if (map.has(id)) nextExpanded.add(id);
-  }
-  // Ensure roots with children start expanded on first load
-  if (nextExpanded.size === 0) {
-    const expandDefault = (parentId: string | null, depth: number) => {
-      if (depth >= 2) return;
-      const ids = indexIds(map, parentId);
-      for (const id of ids) {
-        nextExpanded.add(id);
-        expandDefault(id, depth + 1);
-      }
-    };
-    expandDefault(null, 0);
   }
   if (state.focusRootId && !map.has(state.focusRootId)) {
     state.focusRootId = null;
   }
   state.expandedIds = nextExpanded;
   state._rev++;
-}
-
-function indexIds(nodes: Map<string, Node>, parentId: string | null) {
-  return [...nodes.values()]
-    .filter((n) => !n.deletedAt && n.parentId === parentId)
-    .sort(sortByPosition)
-    .map((n) => n.id);
 }
 
 function tagsFromCustom(custom: unknown): string[] {
