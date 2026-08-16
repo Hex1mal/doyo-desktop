@@ -110,6 +110,12 @@ export function hourFromPointerY(clientY: number, slotElement: HTMLElement) {
   return { hour, minute };
 }
 
+/**
+ * Describe where a dragged task lands: the new due date, plus the one custom key
+ * the calendar owns. Deliberately not a whole `custom` object - callers send this
+ * straight through as a patch, and returning a merged snapshot here would put
+ * every other view's metadata back on the wire.
+ */
 export function moveTaskDate(node: Node, targetDay: Date, hour?: number, minute = 0) {
   if (hour === undefined) {
     const date = startOfLocalDay(targetDay);

@@ -507,6 +507,23 @@ fn node_replace_properties(
         .map_err(|e| e.to_string())
 }
 
+/// Change named property keys against the stored value.
+///
+/// Preferred over `node_replace_properties` for single-field edits: the UI sends
+/// only what it is changing, so a stale client snapshot cannot ride along and
+/// clobber a key another view updated.
+#[tauri::command]
+fn node_patch_properties(
+    state: tauri::State<AppState>,
+    id: String,
+    patch: serde_json::Value,
+) -> Result<Node, String> {
+    let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
+    service
+        .patch_properties(&id, patch)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn node_delete(state: tauri::State<AppState>, id: String, permanent: bool) -> Result<(), String> {
     let mut service = state.node_service.lock().map_err(|e| e.to_string())?;
@@ -1400,6 +1417,7 @@ pub fn run() {
             node_create,
             node_update,
             node_replace_properties,
+            node_patch_properties,
             node_delete,
             trash_get_nodes,
             trash_restore,

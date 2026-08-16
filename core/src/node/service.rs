@@ -109,6 +109,27 @@ impl NodeService {
         Ok(node)
     }
 
+    /// Change only the property keys named in `patch`, against the stored value.
+    ///
+    /// This is the safe way to express a single-field intent from the UI. The
+    /// caller sends what it wants changed rather than a whole snapshot, so no
+    /// stale copy of the node can travel with the request and overwrite a key
+    /// some other view updated in the meantime. A `null` clears a key, and
+    /// `custom` merges by sub-key.
+    pub fn patch_properties(&mut self, id: &str, patch: serde_json::Value) -> Result<Node> {
+        let before = self.repo.get(id)?;
+        if !patch.is_object() {
+            return Err(Error::Validation("Property patch must be an object".into()));
+        }
+        let node = self.repo.patch_properties(id, &patch)?;
+        // Validate the result rather than the patch: only the merged value is
+        // guaranteed to be a complete, coherent set of properties.
+        handler::get_handler(&before.node_type).validate_properties(&node.properties)?;
+        self.activity_repo.log(id, "updated", &patch)?;
+        self.undo_stack.push_update(id.to_string(), before);
+        Ok(node)
+    }
+
     pub fn replace_properties(&mut self, id: &str, properties: NodeProperties) -> Result<Node> {
         let before = self.repo.get(id)?;
         handler::get_handler(&before.node_type).validate_properties(&properties)?;

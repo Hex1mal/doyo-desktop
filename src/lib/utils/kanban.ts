@@ -20,16 +20,6 @@ export function taskStatus(node: Node) {
   return typeof status === 'string' && status.trim() ? status.trim() : 'Inbox';
 }
 
-export function mergeCustomStatus(node: Node, status: string) {
-  const custom =
-    node.properties.custom &&
-    typeof node.properties.custom === 'object' &&
-    !Array.isArray(node.properties.custom)
-      ? node.properties.custom
-      : {};
-  return { ...custom, status };
-}
-
 export function kanbanColumns(
   mode: KanbanGroupMode,
   items: TaskProjectionItem[],

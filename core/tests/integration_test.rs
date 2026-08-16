@@ -1001,6 +1001,310 @@ fn test_property_writes_preserve_unknown_and_unrelated_keys() {
     assert_eq!(after["futureFeatureField"]["keep"], "me");
 }
 
+/// Regression: `get_full_tree(None)` is the query the whole UI loads from, and it
+/// used to walk the hierarchy with a recursive CTE that SQLite planned as a
+/// nested loop — 100 ms at 1k nodes, 11 s at 10k, over 5 minutes at 50k.
+///
+/// Asserts the flat query returns exactly the reachable set, and puts a loose
+/// ceiling on the time so a return to quadratic behaviour fails here rather than
+/// in front of a user. The bound is ~20x the observed cost and ~100x below the
+/// broken version, so it flags a real regression without being timing-flaky.
+#[test]
+fn test_full_tree_stays_linear_and_complete() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+
+    let mut expected = std::collections::HashSet::new();
+    let mut deleted_group = None;
+    for w in 0..5 {
+        let workspace = create_node(&mut service, None, NodeType::Workspace, &format!("W{w}"));
+        expected.insert(workspace.id.clone());
+        for g in 0..5 {
+            let group = group(&mut service, &workspace.id, &format!("G{w}-{g}"));
+            expected.insert(group.id.clone());
+            let mut parent = group.id.clone();
+            for t in 0..40 {
+                let node = task(&mut service, &parent, &format!("T{w}-{g}-{t}"));
+                expected.insert(node.id.clone());
+                // Nest every fifth task to keep the hierarchy genuinely deep.
+                if t % 5 == 4 {
+                    parent = node.id.clone();
+                }
+            }
+            if w == 0 && g == 0 {
+                deleted_group = Some(group.id.clone());
+            }
+        }
+    }
+
+    // A deleted subtree must not come back, including its descendants.
+    let deleted_group = deleted_group.unwrap();
+    let removed: Vec<String> = std::iter::once(deleted_group.clone())
+        .chain(
+            service
+                .get_descendants(&deleted_group)
+                .unwrap()
+                .into_iter()
+                .map(|node| node.id),
+        )
+        .collect();
+    service.delete(&deleted_group, false).unwrap();
+    for id in &removed {
+        expected.remove(id);
+    }
+
+    let start = std::time::Instant::now();
+    let tree = service.get_full_tree(None).unwrap();
+    let elapsed = start.elapsed();
+
+    let returned: std::collections::HashSet<String> =
+        tree.iter().map(|node| node.id.clone()).collect();
+    assert_eq!(
+        returned, expected,
+        "flat tree query returned a different set than the reachable hierarchy"
+    );
+    assert!(
+        elapsed.as_millis() < 2_000,
+        "get_full_tree took {elapsed:?} for {} nodes; the hierarchy walk has gone non-linear again",
+        tree.len()
+    );
+}
+
+/// Regression: each productivity view owns a few keys inside `custom` and knows
+/// nothing about the others. Views used to send a merged snapshot of the whole
+/// bag, so two edits racing on a stale client copy could silently revert one
+/// another. Patching merges by sub-key against the stored value instead.
+#[test]
+fn test_custom_patches_merge_by_sub_key_against_stored_state() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    let read_custom = |id: &str| -> serde_json::Value {
+        let conn = db.conn.lock().unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT properties FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str::<serde_json::Value>(&raw).unwrap()["custom"].clone()
+    };
+
+    // Three views each write the key they own, one after another. None of them
+    // sends, or needs to know about, the others' keys.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"gtdState": "next"}}),
+        )
+        .unwrap();
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"eisenhowerQuadrant": "q1"}}),
+        )
+        .unwrap();
+    service
+        .patch_properties(&node.id, serde_json::json!({"custom": {"status": "Doing"}}))
+        .unwrap();
+
+    let custom = read_custom(&node.id);
+    assert_eq!(custom["gtdState"], "next");
+    assert_eq!(custom["eisenhowerQuadrant"], "q1");
+    assert_eq!(custom["status"], "Doing");
+
+    // A stale writer that only knows about gtdState cannot revert the others.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"gtdState": "waiting"}}),
+        )
+        .unwrap();
+    let custom = read_custom(&node.id);
+    assert_eq!(custom["gtdState"], "waiting");
+    assert_eq!(
+        custom["eisenhowerQuadrant"], "q1",
+        "an unrelated sub-key was lost"
+    );
+    assert_eq!(custom["status"], "Doing", "an unrelated sub-key was lost");
+
+    // A null sub-key removes just that entry.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"status": serde_json::Value::Null}}),
+        )
+        .unwrap();
+    let custom = read_custom(&node.id);
+    assert!(custom.get("status").is_none());
+    assert_eq!(custom["gtdState"], "waiting");
+    assert_eq!(custom["eisenhowerQuadrant"], "q1");
+}
+
+/// Patching one modelled key must not disturb the others, and must be able to
+/// clear a key without sending the rest of the node.
+#[test]
+fn test_patch_properties_touches_only_named_keys() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = task_with_properties(
+        &mut service,
+        &workspace.id,
+        "Task",
+        NodeProperties {
+            priority: Some(2),
+            due_date: Some(chrono::Utc::now()),
+            color: Some("#111111".into()),
+            custom: Some(serde_json::json!({"gtdState": "next"})),
+            ..Default::default()
+        },
+    );
+
+    // What the colour picker now sends.
+    let after = service
+        .patch_properties(&node.id, serde_json::json!({"color": "#336699"}))
+        .unwrap();
+    assert_eq!(after.properties.color.as_deref(), Some("#336699"));
+    assert_eq!(after.properties.priority, Some(2));
+    assert!(after.properties.due_date.is_some());
+    assert_eq!(
+        after.properties.custom.as_ref().unwrap()["gtdState"],
+        "next"
+    );
+
+    // And clearing it leaves everything else alone.
+    let after = service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"color": serde_json::Value::Null}),
+        )
+        .unwrap();
+    assert!(after.properties.color.is_none());
+    assert_eq!(after.properties.priority, Some(2));
+    assert_eq!(
+        after.properties.custom.as_ref().unwrap()["gtdState"],
+        "next"
+    );
+}
+
+/// Guard: `KNOWN_PROPERTY_KEYS` is what `replace_properties` treats as its own
+/// surface. If a field is added to `NodeProperties` without being listed there,
+/// replace would stop clearing it and it would silently become sticky.
+#[test]
+fn test_known_property_keys_match_the_struct() {
+    let fully_populated = NodeProperties {
+        due_date: Some(chrono::Utc::now()),
+        start_date: Some(chrono::Utc::now()),
+        priority: Some(1),
+        reminders: Some(vec![]),
+        recurrence: Some(doyo_core::node::model::RecurrenceConfig {
+            pattern: "daily".into(),
+            interval: 1,
+            days: None,
+        }),
+        estimated_duration_minutes: Some(30),
+        custom: Some(serde_json::json!({})),
+        icon: Some("x".into()),
+        color: Some("#fff".into()),
+        pinned: Some(true),
+        favorite: Some(true),
+    };
+    let serde_json::Value::Object(map) = serde_json::to_value(&fully_populated).unwrap() else {
+        panic!("NodeProperties should serialize to an object");
+    };
+    let mut serialized: Vec<String> = map.keys().cloned().collect();
+    serialized.sort();
+    let mut declared: Vec<String> = doyo_core::node::model::KNOWN_PROPERTY_KEYS
+        .iter()
+        .map(|key| key.to_string())
+        .collect();
+    declared.sort();
+    assert_eq!(
+        serialized, declared,
+        "KNOWN_PROPERTY_KEYS is out of step with NodeProperties"
+    );
+}
+
+/// Regression: the frontend builds its replacement from a normalized node that
+/// only contains modelled keys, so a whole-blob write meant an ordinary edit such
+/// as picking a node colour deleted metadata written by a newer build.
+#[test]
+fn test_replace_properties_preserves_keys_it_does_not_model() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    let stored = r#"{
+        "priority": 1,
+        "due_date": "2026-08-16T09:00:00+00:00",
+        "custom": {"gtdState": "next"},
+        "futureFeatureField": {"keep": "me"}
+    }"#;
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE nodes SET properties = ?1 WHERE id = ?2",
+            rusqlite::params![stored, &node.id],
+        )
+        .unwrap();
+
+    let read = |id: &str| -> serde_json::Value {
+        let conn = db.conn.lock().unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT properties FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&raw).unwrap()
+    };
+
+    // Exactly what the colour picker sends: the store's view of the node
+    // (modelled keys only) with a colour added and the due date dropped.
+    service
+        .replace_properties(
+            &node.id,
+            NodeProperties {
+                priority: Some(1),
+                custom: Some(serde_json::json!({"gtdState": "next"})),
+                color: Some("#336699".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let after = read(&node.id);
+    assert_eq!(after["color"], "#336699");
+    assert_eq!(after["priority"], 1);
+    assert_eq!(after["custom"]["gtdState"], "next");
+    assert_eq!(
+        after["futureFeatureField"]["keep"], "me",
+        "a colour change destroyed a key this build does not model"
+    );
+    // Replace must still clear a modelled key the caller omitted.
+    assert!(
+        after.get("due_date").is_none(),
+        "replace no longer clears omitted modelled keys"
+    );
+}
+
 /// Regression: properties that fail to parse into `NodeProperties` were replaced
 /// with defaults on read, and the emptied struct was then written back, so the
 /// next unrelated edit destroyed the whole blob.

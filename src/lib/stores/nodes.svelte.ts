@@ -3,6 +3,7 @@ import {
   nodeCreate,
   nodeUpdate,
   nodeReplaceProperties,
+  nodePatchProperties,
   nodeDelete,
   nodeMove,
   nodeMoveOrdered,
@@ -185,14 +186,6 @@ function tagsFromCustom(custom: unknown): string[] {
 
 function tagKey(name: string) {
   return name.trim().toLowerCase();
-}
-
-function mergedCustom(node: Node, patch: Record<string, unknown>) {
-  const existing =
-    node.properties.custom && typeof node.properties.custom === 'object'
-      ? node.properties.custom
-      : {};
-  return { ...existing, ...patch };
 }
 
 function cleanedProperties(properties: Node['properties']): Node['properties'] {
@@ -872,7 +865,7 @@ export const nodeStore = {
     const title = input.title.trim();
     if (!title) return { ok: false, error: 'Title is required' };
     try {
-      const custom = mergedCustom(node, { defaultView: input.defaultView ?? 'list' });
+      const custom = { defaultView: input.defaultView ?? 'list' };
       if (node.nodeType === 'Group' && input.parentId && input.parentId !== node.parentId) {
         await nodeMove(id, input.parentId, 999999);
       }
@@ -949,13 +942,11 @@ export const nodeStore = {
   },
 
   async setColor(id: string, color: string | null) {
-    const node = state.nodes.get(id);
-    if (!node) return;
+    if (!state.nodes.has(id)) return;
     try {
-      const next = { ...node.properties };
-      if (color) next.color = color;
-      else delete next.color;
-      const updated = await nodeReplaceProperties(id, cleanedProperties(next));
+      // Only the colour is named, so nothing else about this node travels with
+      // the request and no other view's concurrent edit can be undone by it.
+      const updated = await nodePatchProperties(id, { color: color ?? null });
       this.upsert(updated);
       state.statusMessage = color ? 'Color updated' : 'Color cleared';
     } catch (e) {
@@ -978,19 +969,18 @@ export const nodeStore = {
       return null;
     }
     try {
-      const next = { ...node.properties };
-      if (input.dueDate) next.dueDate = input.dueDate;
-      else delete next.dueDate;
-      if (input.reminders && input.reminders.length) next.reminders = input.reminders;
-      else delete next.reminders;
-      if (input.recurrence) next.recurrence = input.recurrence;
-      else delete next.recurrence;
-      if (input.estimatedDurationMinutes && input.estimatedDurationMinutes > 0) {
-        next.estimatedDurationMinutes = input.estimatedDurationMinutes;
-      } else {
-        delete next.estimatedDurationMinutes;
-      }
-      const updated = await nodeReplaceProperties(id, cleanedProperties(next));
+      // Names every scheduling field, including the ones being cleared, and
+      // nothing else. Priority, colour and custom metadata are not this dialog's
+      // to rewrite, so they are not sent.
+      const updated = await nodePatchProperties(id, {
+        dueDate: input.dueDate || null,
+        reminders: input.reminders?.length ? input.reminders : null,
+        recurrence: input.recurrence || null,
+        estimatedDurationMinutes:
+          input.estimatedDurationMinutes && input.estimatedDurationMinutes > 0
+            ? input.estimatedDurationMinutes
+            : null,
+      });
       this.upsert(updated);
       state.statusMessage = 'Schedule saved';
       return updated;
@@ -1004,11 +994,7 @@ export const nodeStore = {
     const node = state.nodes.get(id);
     if (!node) return;
     try {
-      const updated = await nodeUpdate(id, {
-        properties: {
-          custom: mergedCustom(node, { wontDo }),
-        },
-      });
+      const updated = await nodePatchProperties(id, { custom: { wontDo } });
       this.upsert(updated);
       state.statusMessage = wontDo ? "Marked won't do" : "Cleared won't do";
     } catch (e) {
@@ -1023,11 +1009,7 @@ export const nodeStore = {
       return null;
     }
     try {
-      const updated = await nodeUpdate(id, {
-        properties: {
-          custom: mergedCustom(node, patch),
-        },
-      });
+      const updated = await nodePatchProperties(id, { custom: patch });
       this.upsert(updated);
       state.statusMessage = 'Task metadata saved';
       return updated;
@@ -1047,10 +1029,10 @@ export const nodeStore = {
       const updated = await nodeUpdate(id, {
         nodeType: 'Note',
         properties: {
-          custom: mergedCustom(node, {
+          custom: {
             convertedFrom: 'Task',
             convertedAt: new Date().toISOString(),
-          }),
+          },
         },
       });
       await this.load();

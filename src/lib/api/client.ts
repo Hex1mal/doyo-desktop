@@ -312,6 +312,25 @@ export async function nodeUpdate(id: string, changes: UpdateNodeInput): Promise<
   );
 }
 
+/**
+ * Change only the named property keys, merged against the stored value.
+ *
+ * Preferred over `nodeReplaceProperties` for single-field edits: the caller
+ * sends what it is changing, so a stale copy of the node cannot travel with the
+ * request and overwrite a key another view updated. `null` clears a key, and
+ * `custom` merges by sub-key.
+ */
+export async function nodePatchProperties(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<Node> {
+  const raw = await invoke('node_patch_properties', {
+    id,
+    patch: denormalizeProperties(patch as Partial<Node['properties']>),
+  });
+  return normalizeNode(raw);
+}
+
 export async function nodeReplaceProperties(
   id: string,
   properties: Node['properties'],

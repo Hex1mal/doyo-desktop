@@ -209,10 +209,30 @@ impl NodeRepository {
         .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))
     }
 
+    /// Replace the properties this build models, leaving any others intact.
+    ///
+    /// Callers use this to clear fields, which a merge cannot express: a key
+    /// missing from `properties` means "remove it". That authority stops at the
+    /// keys `NodeProperties` can describe. The frontend builds its replacement
+    /// from a normalized node that only ever contains the modelled keys, so a
+    /// plain whole-blob write let an ordinary edit — picking a node colour, say —
+    /// silently delete metadata written by a newer build.
     pub fn replace_properties(&self, id: &str, properties: &NodeProperties) -> Result<Node> {
         let conn = self.db.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
-        let props_str = serde_json::to_string(properties)?;
+
+        let mut merged = read_properties_object(&conn, id)?;
+        // Clear the caller's surface first so omitted keys are genuinely removed.
+        for key in KNOWN_PROPERTY_KEYS {
+            merged.remove(key);
+        }
+        if let serde_json::Value::Object(replacement) = serde_json::to_value(properties)? {
+            for (key, value) in replacement {
+                merged.insert(key, value);
+            }
+        }
+        let props_str = serde_json::to_string(&serde_json::Value::Object(merged))?;
+
         conn.execute(
             "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
             params![&props_str, &now, id],
@@ -677,16 +697,24 @@ impl NodeRepository {
         match root_id {
             Some(id) => self.get_descendants(id, None),
             None => {
+                // Every live node, flat. This used to walk down from the roots
+                // with a recursive CTE, but for the whole tree that walk is pure
+                // cost: soft delete cascades to descendants and hard delete
+                // cascades by foreign key, so no live node can have a dead
+                // ancestor and "reachable from a root" is exactly "not deleted".
+                //
+                // The cost was not small. SQLite planned the recursive step as a
+                // search on `idx_nodes_deleted_at` — which matches nearly every
+                // row — followed by a full scan of the working table, making the
+                // walk quadratic: 100 ms at 1k nodes, 11 s at 10k, 5 minutes at
+                // 50k, on the query the app loads its entire tree from. Flat, the
+                // same rows come back in 20 ms at 10k.
+                //
+                // Callers sort children by position themselves, so the ordering
+                // here only needs to be stable.
                 let conn = self.db.conn.lock().unwrap();
                 let mut stmt = conn.prepare(
-                    "WITH RECURSIVE full_tree AS (
-                        SELECT *, 0 AS depth FROM nodes WHERE parent_id IS NULL AND deleted_at IS NULL
-                        UNION ALL
-                        SELECT n.*, ft.depth + 1
-                        FROM nodes n JOIN full_tree ft ON n.parent_id = ft.id
-                        WHERE n.deleted_at IS NULL
-                    )
-                    SELECT * FROM full_tree ORDER BY depth, position"
+                    "SELECT * FROM nodes WHERE deleted_at IS NULL ORDER BY position, created_at",
                 )?;
                 let nodes = stmt
                     .query_map([], |row| Ok(map_node(row)))?
@@ -904,9 +932,32 @@ pub(crate) fn merged_properties_json(
         for (key, value) in patch {
             if value.is_null() {
                 existing.remove(key);
-            } else {
-                existing.insert(key.clone(), value.clone());
+                continue;
             }
+            // `custom` is the extension bag every productivity view writes into -
+            // GTD state, Eisenhower quadrant, Kanban status, Pareto scores. Those
+            // views each own a few keys and know nothing about the others, so a
+            // patch touching one key must not carry away the rest. Merging by
+            // sub-key against the stored value means a caller never has to send
+            // (and therefore never has to hold a fresh copy of) keys it does not
+            // care about.
+            if key == "custom" {
+                if let (Some(serde_json::Value::Object(current)), serde_json::Value::Object(next)) =
+                    (existing.get(key), value)
+                {
+                    let mut merged = current.clone();
+                    for (sub_key, sub_value) in next {
+                        if sub_value.is_null() {
+                            merged.remove(sub_key);
+                        } else {
+                            merged.insert(sub_key.clone(), sub_value.clone());
+                        }
+                    }
+                    existing.insert(key.clone(), serde_json::Value::Object(merged));
+                    continue;
+                }
+            }
+            existing.insert(key.clone(), value.clone());
         }
     }
     Ok(serde_json::to_string(&serde_json::Value::Object(existing))?)
