@@ -337,7 +337,9 @@ export const nodeStore = {
       rebuildFromList(list);
       await this.loadTags();
       if (state.viewMode === 'trash') await this.loadTrash();
-      state.statusMessage = `${state.nodes.size} nodes`;
+      // The status bar already shows the node count in its own slot; repeating
+      // it here printed the same number twice across the bar.
+      state.statusMessage = '';
       return true;
     } catch (e) {
       toast.error('Failed to load workspace');

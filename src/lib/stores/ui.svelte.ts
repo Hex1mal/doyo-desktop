@@ -141,6 +141,10 @@ function getInitialPrefs(): UiPrefs {
       calendarPrefs: {
         ...DEFAULT_PREFS.calendarPrefs,
         ...(parsed.calendarPrefs ?? {}),
+        // Which month you were last looking at is not a preference. Restoring it
+        // reopens Doyo on an arbitrary past date, so the calendar always starts
+        // on today; view mode and week start below stay persisted.
+        currentDate: DEFAULT_PREFS.calendarPrefs.currentDate,
       },
       kanbanPrefs: {
         ...DEFAULT_PREFS.kanbanPrefs,
@@ -149,6 +153,9 @@ function getInitialPrefs(): UiPrefs {
       timelinePrefs: {
         ...DEFAULT_PREFS.timelinePrefs,
         ...(parsed.timelinePrefs ?? {}),
+        // Same reasoning as the calendar: start where the user is, not where
+        // they left off in some earlier session.
+        currentDate: DEFAULT_PREFS.timelinePrefs.currentDate,
       },
       focusPrefs: {
         ...DEFAULT_PREFS.focusPrefs,
