@@ -4,10 +4,15 @@ title = "Doyo gitleaks configuration"
 useDefault = true
 
 [[allowlists]]
+# Both criteria must hold, so a file is only exempt for these specific strings.
+# Newer gitleaks releases default this to AND; stating it keeps the behaviour the
+# same across versions rather than depending on whichever default is in effect.
+condition = "AND"
 description = "LocalStorage preference keys are not secrets"
 paths = [
   '''src/lib/stores/reminders\.svelte\.ts''',
   '''src/lib/stores/ui\.svelte\.ts''',
+  '''src/lib/stores/ui-prefs\.test\.ts''',
 ]
 regexes = [
   '''doyo\.sentReminderKeys\.v1''',
