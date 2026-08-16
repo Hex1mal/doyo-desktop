@@ -650,6 +650,7 @@ export async function backupList(): Promise<string[]> {
   return invoke('backup_list');
 }
 
-export async function backupRestore(backupName: string): Promise<void> {
-  return invoke('backup_restore', { backupName });
+/** Resolves to the pre-restore snapshot filename, which rolls the restore back. */
+export async function backupRestore(backupName: string): Promise<string | null> {
+  return invoke<string | null>('backup_restore', { backupName });
 }

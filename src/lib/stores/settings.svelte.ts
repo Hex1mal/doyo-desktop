@@ -116,9 +116,15 @@ export const settingsStore = {
       if (prefs.createSafetyBackupBeforeRestore) {
         await backupCreate();
       }
-      await backupRestore(name);
+      // The backend always snapshots the live database first and returns that
+      // snapshot's name, so a restore stays reversible even with the preference off.
+      const snapshot = await backupRestore(name);
       state.backups = await backupList();
-      toast.info('Backup restored. Restart the app to reload the restored database.');
+      toast.info(
+        snapshot
+          ? `Backup restored. Restart the app to reload it. Roll back with ${snapshot}.`
+          : 'Backup restored. Restart the app to reload the restored database.',
+      );
       return true;
     } catch (e) {
       toast.error(`Restore failed: ${String(e)}`);

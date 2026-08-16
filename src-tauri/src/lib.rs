@@ -140,6 +140,47 @@ fn create_migration_safety_backup(
         })
 }
 
+/// Snapshot the database before a schema upgrade so a bad migration is
+/// recoverable. Returns `None` when the schema is already current, or when there
+/// is no database yet to protect.
+///
+/// The WAL is truncated into the main file first: a plain file copy of a WAL-mode
+/// database would otherwise miss everything not yet checkpointed.
+fn backup_before_schema_upgrade(db: &Database, db_path: &Path, app_dir: &Path) -> Option<PathBuf> {
+    if !db_path.exists() {
+        return None;
+    }
+    let conn = db.conn.lock().ok()?;
+    let current: i32 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    // 0 means a brand-new database; there is nothing worth protecting.
+    if current == 0 || current >= doyo_core::db::LATEST_SCHEMA_VERSION {
+        return None;
+    }
+    let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    drop(conn);
+
+    match create_migration_safety_backup(db_path, app_dir, &format!("schema-v{current}")) {
+        Ok(path) => {
+            eprintln!(
+                "doyo: created pre-migration backup at {} before upgrading schema v{current} -> v{}",
+                path.display(),
+                doyo_core::db::LATEST_SCHEMA_VERSION
+            );
+            Some(path)
+        }
+        Err(e) => {
+            eprintln!("doyo: could not create pre-migration backup: {e}");
+            None
+        }
+    }
+}
+
 fn migrate_legacy_doyo_data(new_app_dir: &Path) -> Result<(), String> {
     let new_db_path = new_app_dir.join(NEW_DB_NAME);
     if new_db_path.exists() {
@@ -916,10 +957,25 @@ fn backup_service(state: &tauri::State<AppState>) -> BackupService {
     BackupService::new(state.db_path.clone(), state.backup_dir.clone(), 20)
 }
 
+/// Flush the WAL into the main database file so a file-level copy sees every
+/// committed change.
+///
+/// `wal_checkpoint` reports busy/incomplete through its result row rather than an
+/// error, so the row is inspected: swallowing it would let a partial checkpoint
+/// produce a silently incomplete backup.
 fn checkpoint_database(state: &tauri::State<AppState>) -> Result<(), String> {
     let conn = state.db.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute_batch("PRAGMA wal_checkpoint(FULL);")
-        .map_err(|e| e.to_string())
+    let (busy, _log, _checkpointed): (i64, i64, i64) = conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|e| format!("failed to checkpoint database: {e}"))?;
+    if busy != 0 {
+        return Err(
+            "Database is busy and could not be fully checkpointed. Close other Doyo activity and try again.".into(),
+        );
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -939,10 +995,22 @@ fn backup_list(state: tauri::State<AppState>) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-fn backup_restore(state: tauri::State<AppState>, backup_name: String) -> Result<(), String> {
+/// Returns the filename of the pre-restore snapshot, so the UI can tell the user
+/// exactly which backup rolls the restore back.
+fn backup_restore(
+    state: tauri::State<AppState>,
+    backup_name: String,
+) -> Result<Option<String>, String> {
     checkpoint_database(&state)?;
     backup_service(&state)
         .restore_backup(&backup_name)
+        .map(|path| {
+            path.map(|p| {
+                p.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| p.to_string_lossy().to_string())
+            })
+        })
         .map_err(|e| e.to_string())
 }
 
@@ -960,6 +1028,7 @@ pub fn run() {
             let db_path = app_dir.join(NEW_DB_NAME);
             let backup_dir = app_dir.join("backups");
             let db = Arc::new(Database::open(&db_path).expect("failed to open database"));
+            backup_before_schema_upgrade(&db, &db_path, &app_dir);
             doyo_core::db::run_migrations(&db).expect("failed to run migrations");
             let node_service = NodeService::new(db.clone());
             app.manage(AppState {
