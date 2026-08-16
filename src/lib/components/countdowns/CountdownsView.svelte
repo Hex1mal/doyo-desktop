@@ -51,7 +51,6 @@
   <div class="view-header">
     <div>
       <h2>Countdowns</h2>
-      <p>Count down to dates or count up from milestones. Records are local and durable.</p>
     </div>
     <label class="inline">
       <input
@@ -84,7 +83,11 @@
   {#if countdownStore.isLoading}
     <div class="empty-state small"><p>Loading countdowns...</p></div>
   {:else if countdownStore.countdowns.length === 0}
-    <div class="empty-state small"><p>No countdowns yet</p></div>
+    <div class="empty-state small">
+      <p class="empty-title">No countdowns yet</p>
+      <p>Track the days until something that matters, or the days since it happened.</p>
+      <p class="empty-hint">Name it above, pick a date, and select Create.</p>
+    </div>
   {:else}
     <div class="countdown-grid">
       {#each countdownStore.countdowns as countdown (countdown.id)}
@@ -192,7 +195,6 @@
   .view-header {
     justify-content: space-between;
   }
-  .view-header p,
   article span {
     color: var(--text-tertiary);
   }

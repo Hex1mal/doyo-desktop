@@ -21,7 +21,9 @@
       if (moduleTitles[uiStore.activeModule]) {
         return [{ id: null, title: moduleTitles[uiStore.activeModule] }];
       }
-      return [{ id: null, title: 'All nodes' }];
+      // Names what the view actually contains. "All nodes" was internal
+      // vocabulary, and it duplicated the scope header that used to sit below.
+      return [{ id: null, title: 'All Workspaces' }];
     }
     const ancestors = nodeStore.getAncestors(sel.id);
     return [

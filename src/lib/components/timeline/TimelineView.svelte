@@ -40,9 +40,6 @@
   <header class="timeline-toolbar">
     <div>
       <h2>Timeline</h2>
-      <p>
-        Tasks are shown by existing start and due dates. Drag bars to move; drag handles to resize.
-      </p>
     </div>
     <button onclick={() => uiStore.setTimelinePrefs({ currentDate: new Date().toISOString() })}
       >Today</button
@@ -114,11 +111,6 @@
   .timeline-toolbar h2 {
     margin: 0;
     font-size: var(--text-lg);
-  }
-  .timeline-toolbar p {
-    margin: 3px 0 0;
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
   }
   .timeline-toolbar button,
   .timeline-toolbar select {

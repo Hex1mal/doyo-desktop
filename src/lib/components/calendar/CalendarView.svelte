@@ -39,10 +39,6 @@
 
 <div class="calendar-view">
   <CalendarToolbar {currentDate} />
-  <div class="calendar-rule">
-    Calendar shows original tasks with due dates and planning time blocks. Completed tasks are
-    hidden by default and can be shown with the toolbar checkbox.
-  </div>
   <div class="calendar-surface">
     {#if calendarStore.isLoading}
       <div class="empty-state small"><p>Loading calendar...</p></div>
@@ -84,13 +80,6 @@
     min-height: 0;
     height: 100%;
     overflow: hidden;
-  }
-  .calendar-rule {
-    padding: 7px 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
-    background: var(--bg-app);
   }
   .calendar-surface {
     flex: 1;
