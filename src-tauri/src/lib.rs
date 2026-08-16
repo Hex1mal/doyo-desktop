@@ -27,6 +27,62 @@ pub struct AppState {
     pub db: Arc<Database>,
     pub db_path: std::path::PathBuf,
     pub backup_dir: std::path::PathBuf,
+    pub migration_backup_dir: std::path::PathBuf,
+    pub startup: std::sync::Mutex<StartupReport>,
+}
+
+/// Directory holding databases that could not be opened. Never deleted
+/// automatically: a database we failed to read is still the user's data.
+const QUARANTINE_DIR_NAME: &str = "unopenable";
+const MIGRATION_BACKUP_DIR_NAME: &str = "migration-backups";
+
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartupStatus {
+    /// The database opened and migrated normally.
+    Ok,
+    /// The database could not be used; it was set aside and a new one started.
+    Recovered,
+    /// No usable database directory at all; running from memory, nothing persists.
+    Ephemeral,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupReport {
+    pub status: StartupStatus,
+    /// One-line summary suitable for showing to the user.
+    pub summary: Option<String>,
+    /// The underlying error, for users who want to know what actually happened.
+    pub detail: Option<String>,
+    /// Where the unusable database was preserved.
+    pub quarantined_path: Option<String>,
+    /// Databases that pass validation and could be restored right now.
+    pub recovery_candidates: Vec<RecoveryCandidate>,
+}
+
+impl StartupReport {
+    fn healthy() -> Self {
+        Self {
+            status: StartupStatus::Ok,
+            summary: None,
+            detail: None,
+            quarantined_path: None,
+            recovery_candidates: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoveryCandidate {
+    pub name: String,
+    /// Which directory it came from: `backup` or `migrationBackup`.
+    pub source: String,
+    pub schema_version: i64,
+    pub size_bytes: u64,
+    /// RFC3339 modification time, when the filesystem reports one.
+    pub modified_at: Option<String>,
 }
 
 const LEGACY_TODOAPP_APP_DIR_NAME: &str = "com.todoapp.desktop";
@@ -177,6 +233,169 @@ fn backup_before_schema_upgrade(db: &Database, db_path: &Path, app_dir: &Path) -
         Err(e) => {
             eprintln!("doyo: could not create pre-migration backup: {e}");
             None
+        }
+    }
+}
+
+/// Open the database and bring its schema up to date.
+fn open_and_migrate(db_path: &Path, app_dir: &Path) -> Result<Arc<Database>, String> {
+    let db = Arc::new(
+        Database::open(db_path)
+            .map_err(|e| format!("could not open {}: {e}", db_path.display()))?,
+    );
+    {
+        let conn = db
+            .conn
+            .lock()
+            .map_err(|e| format!("database lock poisoned: {e}"))?;
+        let integrity: String = conn
+            .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+            .map_err(|e| format!("integrity check failed: {e}"))?;
+        if integrity != "ok" {
+            return Err(format!("database is corrupted: {integrity}"));
+        }
+    }
+    backup_before_schema_upgrade(&db, db_path, app_dir);
+    doyo_core::db::run_migrations(&db).map_err(|e| format!("could not migrate schema: {e}"))?;
+    Ok(db)
+}
+
+/// Move an unusable database aside, preserving its WAL sidecars with it.
+///
+/// Renamed rather than deleted, always: a database we could not read may still
+/// be recoverable by hand, and it is the user's data either way.
+fn quarantine_database(db_path: &Path, app_dir: &Path) -> Result<PathBuf, String> {
+    let quarantine_dir = app_dir.join(QUARANTINE_DIR_NAME);
+    std::fs::create_dir_all(&quarantine_dir).map_err(|e| e.to_string())?;
+    let stamp = chrono::Utc::now().format("%Y-%m-%d-%H%M%S");
+    let target = quarantine_dir.join(format!("doyo-unopenable-{stamp}.db"));
+
+    std::fs::rename(db_path, &target)
+        .map_err(|e| format!("could not set aside {}: {e}", db_path.display()))?;
+
+    // Keep the sidecars with the file they belong to; they may hold the only
+    // copy of recent transactions.
+    if let Some(file_name) = db_path.file_name() {
+        for suffix in ["-wal", "-shm"] {
+            let mut sidecar_name = file_name.to_os_string();
+            sidecar_name.push(suffix);
+            let sidecar = db_path.with_file_name(&sidecar_name);
+            if sidecar.exists() {
+                let mut target_name = target.file_name().unwrap().to_os_string();
+                target_name.push(suffix);
+                let _ = std::fs::rename(&sidecar, target.with_file_name(target_name));
+            }
+        }
+    }
+    Ok(target)
+}
+
+/// List databases in `dir` that would actually pass a restore, newest first.
+fn collect_recovery_candidates(dir: &Path, source: &str) -> Vec<RecoveryCandidate> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut candidates: Vec<(std::time::SystemTime, RecoveryCandidate)> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("db") {
+            continue;
+        }
+        // Only offer files that will genuinely restore; a candidate that fails
+        // at the moment of truth is worse than not listing it.
+        let Ok(schema_version) = doyo_core::backup::validate_restorable_database(&path) else {
+            continue;
+        };
+        let metadata = entry.metadata().ok();
+        let modified = metadata.as_ref().and_then(|m| m.modified().ok());
+        candidates.push((
+            modified.unwrap_or(std::time::UNIX_EPOCH),
+            RecoveryCandidate {
+                name: entry.file_name().to_string_lossy().to_string(),
+                source: source.to_string(),
+                schema_version,
+                size_bytes: metadata.as_ref().map(|m| m.len()).unwrap_or(0),
+                modified_at: modified
+                    .map(|time| chrono::DateTime::<chrono::Utc>::from(time).to_rfc3339()),
+            },
+        ));
+    }
+    candidates.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
+    candidates.into_iter().map(|(_, c)| c).collect()
+}
+
+fn all_recovery_candidates(app_dir: &Path) -> Vec<RecoveryCandidate> {
+    let mut all = collect_recovery_candidates(&app_dir.join("backups"), "backup");
+    all.extend(collect_recovery_candidates(
+        &app_dir.join(MIGRATION_BACKUP_DIR_NAME),
+        "migrationBackup",
+    ));
+    all
+}
+
+/// Bring up a database, recovering rather than crashing when that is not possible.
+///
+/// Startup must always reach a running window. A panic here leaves the user with
+/// no application and no explanation, which is the worst outcome for a database
+/// problem that is usually recoverable from an existing backup.
+fn initialize_database(app_dir: &Path, db_path: &Path) -> (Arc<Database>, StartupReport) {
+    match open_and_migrate(db_path, app_dir) {
+        Ok(db) => (db, StartupReport::healthy()),
+        Err(reason) => {
+            eprintln!("doyo: database could not be opened: {reason}");
+
+            let quarantined = if db_path.exists() {
+                match quarantine_database(db_path, app_dir) {
+                    Ok(path) => Some(path),
+                    Err(e) => {
+                        eprintln!("doyo: could not quarantine the database: {e}");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            // With the bad file out of the way, a fresh database should open.
+            match open_and_migrate(db_path, app_dir) {
+                Ok(db) => {
+                    let report = StartupReport {
+                        status: StartupStatus::Recovered,
+                        summary: Some(
+                            "Doyo could not open your database, so it started with an empty one."
+                                .into(),
+                        ),
+                        detail: Some(reason),
+                        quarantined_path: quarantined
+                            .as_ref()
+                            .map(|p| p.to_string_lossy().to_string()),
+                        recovery_candidates: all_recovery_candidates(app_dir),
+                    };
+                    (db, report)
+                }
+                Err(second) => {
+                    eprintln!("doyo: could not start a fresh database either: {second}");
+                    // Last resort: run from memory so the window still opens and
+                    // can explain the problem. Nothing written here persists.
+                    let db = Arc::new(
+                        Database::open_in_memory().expect("in-memory database is always available"),
+                    );
+                    let _ = doyo_core::db::run_migrations(&db);
+                    let report = StartupReport {
+                        status: StartupStatus::Ephemeral,
+                        summary: Some(
+                            "Doyo cannot write to its data folder. Changes will not be saved."
+                                .into(),
+                        ),
+                        detail: Some(format!("{reason}; {second}")),
+                        quarantined_path: quarantined
+                            .as_ref()
+                            .map(|p| p.to_string_lossy().to_string()),
+                        recovery_candidates: all_recovery_candidates(app_dir),
+                    };
+                    (db, report)
+                }
+            }
         }
     }
 }
@@ -994,24 +1213,144 @@ fn backup_list(state: tauri::State<AppState>) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Make the file at `db_path` the live database for this running session.
+///
+/// Restore replaces the database file underneath handles that were cloned at
+/// startup. Repointing the shared connection here means the restored data is
+/// active immediately, instead of the user being told to restart and left
+/// looking at data that is no longer on disk.
+fn activate_database(state: &tauri::State<AppState>) -> Result<(), String> {
+    state
+        .db
+        .reopen(&state.db_path)
+        .map_err(|e| format!("restored database could not be opened: {e}"))?;
+
+    // A backup may predate the current schema, so bring it up to date before
+    // anything queries it.
+    doyo_core::db::run_migrations(&state.db)
+        .map_err(|e| format!("restored database could not be migrated: {e}"))?;
+
+    // Undo history describes rows in the database we just replaced.
+    state
+        .node_service
+        .lock()
+        .map_err(|e| e.to_string())?
+        .reset_history();
+
+    // Whatever was wrong at startup no longer describes the live database.
+    if let Ok(mut startup) = state.startup.lock() {
+        *startup = StartupReport::healthy();
+    }
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreOutcome {
+    /// Pre-restore snapshot filename; restoring it undoes this restore.
+    pub snapshot_name: Option<String>,
+    /// True when the restored database is already live and no restart is needed.
+    pub activated: bool,
+    /// Set only when the data was restored but could not be made live.
+    pub activation_error: Option<String>,
+}
+
+/// Run a restore and make the result live, keeping the session usable either way.
+fn perform_restore(
+    state: &tauri::State<AppState>,
+    resolve: impl FnOnce(&BackupService) -> doyo_core::error::Result<Option<PathBuf>>,
+) -> Result<RestoreOutcome, String> {
+    checkpoint_database(state)?;
+
+    // Close the file before it is replaced so SQLite finishes its WAL cleanup
+    // against the database it actually opened.
+    state.db.detach().map_err(|e| e.to_string())?;
+
+    let service = backup_service(state);
+    let restored = resolve(&service);
+
+    let snapshot = match restored {
+        Ok(snapshot) => snapshot,
+        Err(e) => {
+            // The live file was left untouched, so put the session back as it was.
+            let _ = activate_database(state);
+            return Err(e.to_string());
+        }
+    };
+
+    let activation = activate_database(state);
+    Ok(RestoreOutcome {
+        snapshot_name: snapshot.map(|p| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| p.to_string_lossy().to_string())
+        }),
+        activated: activation.is_ok(),
+        activation_error: activation.err(),
+    })
+}
+
 #[tauri::command]
-/// Returns the filename of the pre-restore snapshot, so the UI can tell the user
-/// exactly which backup rolls the restore back.
 fn backup_restore(
     state: tauri::State<AppState>,
     backup_name: String,
-) -> Result<Option<String>, String> {
-    checkpoint_database(&state)?;
-    backup_service(&state)
-        .restore_backup(&backup_name)
-        .map(|path| {
-            path.map(|p| {
-                p.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| p.to_string_lossy().to_string())
-            })
-        })
+) -> Result<RestoreOutcome, String> {
+    perform_restore(&state, |service| service.restore_backup(&backup_name))
+}
+
+#[tauri::command]
+fn startup_report(state: tauri::State<AppState>) -> Result<StartupReport, String> {
+    state
+        .startup
+        .lock()
+        .map(|report| report.clone())
         .map_err(|e| e.to_string())
+}
+
+/// Restore one of the candidates offered by the startup recovery screen.
+///
+/// `source` selects the directory, and the filename is validated against it, so
+/// a caller cannot reach a file outside the two recovery directories.
+#[tauri::command]
+fn recovery_restore(
+    state: tauri::State<AppState>,
+    name: String,
+    source: String,
+) -> Result<RestoreOutcome, String> {
+    let dir = match source.as_str() {
+        "backup" => state.backup_dir.clone(),
+        "migrationBackup" => state.migration_backup_dir.clone(),
+        other => return Err(format!("Unknown recovery source: {other}")),
+    };
+
+    // Resolve inside the chosen directory and prove the result stayed there.
+    let candidate = std::path::Path::new(&name);
+    if candidate.components().count() != 1 {
+        return Err("Recovery filename must not contain path separators".into());
+    }
+    let resolved = dir
+        .join(candidate)
+        .canonicalize()
+        .map_err(|e| format!("Recovery file not found: {e}"))?;
+    let canonical_dir = dir
+        .canonicalize()
+        .map_err(|e| format!("Recovery directory not found: {e}"))?;
+    if !resolved.starts_with(&canonical_dir) {
+        return Err("Recovery path escapes its directory".into());
+    }
+
+    perform_restore(&state, move |service| service.restore_from(&resolved))
+}
+
+/// Re-list recovery candidates on demand, for the recovery screen's refresh.
+#[tauri::command]
+fn recovery_candidates(state: tauri::State<AppState>) -> Result<Vec<RecoveryCandidate>, String> {
+    let app_dir = state
+        .db_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .ok_or_else(|| "database path has no parent directory".to_string())?;
+    Ok(all_recovery_candidates(&app_dir))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1019,23 +1358,40 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Nothing in here may panic. A database problem must still produce a
+            // window that can explain itself and offer recovery.
             let app_dir = app
                 .path()
                 .app_data_dir()
-                .expect("failed to get app data dir");
-            std::fs::create_dir_all(&app_dir).expect("failed to create app data dir");
-            migrate_legacy_doyo_data(&app_dir).expect("failed to migrate legacy Doyo data");
+                .unwrap_or_else(|_| std::env::temp_dir().join("io.github.hex1mal.doyo"));
+            if let Err(e) = std::fs::create_dir_all(&app_dir) {
+                eprintln!("doyo: could not create app data dir: {e}");
+            }
+
+            // A legacy-import failure must not block startup; the fresh database
+            // still works, and the old data is left untouched where it is.
+            let legacy_error = migrate_legacy_doyo_data(&app_dir).err();
+            if let Some(ref e) = legacy_error {
+                eprintln!("doyo: could not import legacy data: {e}");
+            }
+
             let db_path = app_dir.join(NEW_DB_NAME);
-            let backup_dir = app_dir.join("backups");
-            let db = Arc::new(Database::open(&db_path).expect("failed to open database"));
-            backup_before_schema_upgrade(&db, &db_path, &app_dir);
-            doyo_core::db::run_migrations(&db).expect("failed to run migrations");
+            let (db, mut startup) = initialize_database(&app_dir, &db_path);
+            if let Some(e) = legacy_error {
+                startup.detail = Some(match startup.detail {
+                    Some(existing) => format!("{existing}; legacy import failed: {e}"),
+                    None => format!("legacy import failed: {e}"),
+                });
+            }
+
             let node_service = NodeService::new(db.clone());
             app.manage(AppState {
                 node_service: std::sync::Mutex::new(node_service),
                 db,
                 db_path,
-                backup_dir,
+                backup_dir: app_dir.join("backups"),
+                migration_backup_dir: app_dir.join(MIGRATION_BACKUP_DIR_NAME),
+                startup: std::sync::Mutex::new(startup),
             });
             Ok(())
         })
@@ -1116,6 +1472,9 @@ pub fn run() {
             backup_create,
             backup_list,
             backup_restore,
+            startup_report,
+            recovery_restore,
+            recovery_candidates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running application");

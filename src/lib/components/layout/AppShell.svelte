@@ -15,6 +15,8 @@
   import { handleGlobalKeydown } from '$lib/keyboard/handler';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { reminderStore } from '$lib/stores/reminders.svelte';
+  import StartupRecovery from '$lib/components/layout/StartupRecovery.svelte';
+  import { startupStore } from '$lib/stores/startup.svelte';
 
   let didBootstrap = false;
 
@@ -25,6 +27,9 @@
     const loadWithRetry = async (attempt = 0) => {
       if (attempt === 0) {
         await uiStore.loadPersistedSettings();
+        // Surfaced before anything else: if the database could not be opened,
+        // the user needs to know before they start typing into an empty one.
+        await startupStore.load();
       }
       const loaded = await nodeStore.load();
       reminderStore.start();
@@ -129,6 +134,7 @@
   <DueDatePrompt />
 {/if}
 <ToastHost />
+<StartupRecovery />
 {#if uiStore.zoomFeedback}
   <div class="zoom-feedback" role="status">{uiStore.zoomFeedback}</div>
 {/if}

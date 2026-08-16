@@ -519,6 +519,15 @@ impl NodeService {
         Ok(description)
     }
 
+    /// Forget undo/redo history.
+    ///
+    /// Must be called whenever the database behind this service is replaced: the
+    /// stacks hold node snapshots from the previous database, and replaying them
+    /// against a restored one would resurrect or overwrite unrelated rows.
+    pub fn reset_history(&mut self) {
+        self.undo_stack.clear();
+    }
+
     pub fn can_undo(&self) -> bool {
         self.undo_stack.can_undo()
     }

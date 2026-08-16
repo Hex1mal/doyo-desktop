@@ -1153,6 +1153,194 @@ fn test_restore_rejects_invalid_backups_without_touching_live_database() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
+/// Regression: after a restore the running session must see the restored data
+/// without an app restart, and must not be able to undo its way back into rows
+/// from the database that was replaced.
+#[test]
+fn test_reopen_activates_restored_database_for_live_services() {
+    let root = std::env::temp_dir().join(format!("doyo-reopen-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&root).unwrap();
+    let db_path = root.join("doyo.db");
+
+    // A session running against the original database.
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "original");
+
+    let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 10);
+    db.conn
+        .lock()
+        .unwrap()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+    let backup = backups.create_backup().unwrap();
+    let backup_name = backup.file_name().unwrap().to_string_lossy().to_string();
+
+    // Diverge, so the restore has something to roll back.
+    let after = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "created-after-backup",
+    );
+    assert!(
+        service.can_undo(),
+        "undo history should exist before restore"
+    );
+
+    // What the Tauri command does: checkpoint, release the file, restore, reopen.
+    db.conn
+        .lock()
+        .unwrap()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+    db.detach().unwrap();
+    backups.restore_backup(&backup_name).unwrap();
+    db.reopen(&db_path).unwrap();
+    run_migrations(&db).unwrap();
+    service.reset_history();
+
+    // The same service instance now reads the restored database.
+    assert!(
+        service.get(&after.id).is_err(),
+        "service still sees a node that the restore removed"
+    );
+    let roots = service.get_children(None).unwrap();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].title, "original");
+
+    // Undo history from the replaced database must not be replayable.
+    assert!(
+        !service.can_undo(),
+        "undo history survived the restore and could resurrect stale rows"
+    );
+
+    // And the reopened handle is fully writable, not a read-only leftover.
+    let fresh = create_node(
+        &mut service,
+        Some(roots[0].id.clone()),
+        NodeType::Task,
+        "written-after-restore",
+    );
+    assert_eq!(
+        service.get(&fresh.id).unwrap().title,
+        "written-after-restore"
+    );
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: restoring a backup written against an older schema must migrate
+/// it up, not leave the session on a schema the code no longer matches.
+#[test]
+fn test_restored_older_schema_is_migrated_on_activation() {
+    let root = std::env::temp_dir().join(format!("doyo-oldschema-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "current");
+
+    // Build a backup that stops at schema v1.
+    let old_backup = backup_dir.join("old-schema.db");
+    {
+        let old = Database::open(&old_backup).unwrap();
+        let conn = old.conn.lock().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER PRIMARY KEY NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+                description TEXT
+            );",
+        )
+        .unwrap();
+        conn.execute_batch(include_str!("../src/db/migrations/001_initial.sql"))
+            .unwrap();
+        conn.execute(
+            "INSERT INTO schema_version (version, description) VALUES (1, 'Initial schema')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+    }
+
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let backups = BackupService::new(db_path.clone(), backup_dir, 10);
+
+    db.detach().unwrap();
+    backups.restore_backup("old-schema.db").unwrap();
+    db.reopen(&db_path).unwrap();
+    run_migrations(&db).unwrap();
+
+    let version: i32 = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        version,
+        doyo_core::db::LATEST_SCHEMA_VERSION,
+        "restored older backup was not migrated up"
+    );
+
+    // Tables added by later migrations must exist and be usable.
+    let mut service = NodeService::new(db.clone());
+    let ws = create_node(&mut service, None, NodeType::Workspace, "after-upgrade");
+    assert_eq!(service.get(&ws.id).unwrap().title, "after-upgrade");
+    let habits: i64 = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM habits", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(habits, 0);
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: a failed restore must leave the session pointed at a working
+/// database rather than the scratch connection used during the swap.
+#[test]
+fn test_failed_restore_leaves_live_database_usable() {
+    let root = std::env::temp_dir().join(format!("doyo-failrestore-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "precious");
+
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 10);
+    std::fs::write(backup_dir.join("broken.db"), b"not a database").unwrap();
+
+    db.detach().unwrap();
+    let result = backups.restore_backup("broken.db");
+    assert!(result.is_err(), "invalid restore should fail");
+
+    // Recovery path: reattach to the untouched live database.
+    db.reopen(&db_path).unwrap();
+    let service = NodeService::new(db.clone());
+    let roots = service.get_children(None).unwrap();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].title, "precious");
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 /// Regression: a restore must be reversible even when the caller does not ask
 /// for a safety backup, and must not leave the replaced database's WAL behind.
 #[test]

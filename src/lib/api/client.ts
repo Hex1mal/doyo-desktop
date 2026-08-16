@@ -25,6 +25,9 @@ import type {
   UpsertHabitLogInput,
   StopFocusInput,
   ReminderConfig,
+  StartupReport,
+  RecoveryCandidate,
+  RestoreOutcome,
 } from '$lib/types/node';
 
 type RawRecord = Record<string, unknown>;
@@ -650,7 +653,21 @@ export async function backupList(): Promise<string[]> {
   return invoke('backup_list');
 }
 
-/** Resolves to the pre-restore snapshot filename, which rolls the restore back. */
-export async function backupRestore(backupName: string): Promise<string | null> {
-  return invoke<string | null>('backup_restore', { backupName });
+export async function backupRestore(backupName: string): Promise<RestoreOutcome> {
+  return invoke<RestoreOutcome>('backup_restore', { backupName });
+}
+
+export async function startupReport(): Promise<StartupReport> {
+  return invoke<StartupReport>('startup_report');
+}
+
+export async function recoveryCandidates(): Promise<RecoveryCandidate[]> {
+  return invoke<RecoveryCandidate[]>('recovery_candidates');
+}
+
+export async function recoveryRestore(
+  name: string,
+  source: RecoveryCandidate['source'],
+): Promise<RestoreOutcome> {
+  return invoke<RestoreOutcome>('recovery_restore', { name, source });
 }

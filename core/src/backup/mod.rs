@@ -59,9 +59,17 @@ impl BackupService {
                 backup_name
             )));
         }
+        self.restore_from(&backup_path)
+    }
 
+    /// Restore from an already-resolved path.
+    ///
+    /// Separate from [`Self::restore_backup`] so recovery can also pull from the
+    /// pre-migration snapshot directory. The caller owns proving the path is one
+    /// the user is allowed to read; every data-safety step below still applies.
+    pub fn restore_from(&self, backup_path: &Path) -> Result<Option<PathBuf>> {
         // 1. Never overwrite live data with a file we have not verified.
-        validate_restorable_database(&backup_path)?;
+        validate_restorable_database(backup_path)?;
 
         // 2. Keep an escape hatch before touching anything.
         let safety_copy = self.create_pre_restore_snapshot()?;
@@ -69,7 +77,7 @@ impl BackupService {
         // 3. Stage then swap, so an interrupted copy cannot truncate the live DB.
         let staged = self.db_path.with_extension("restore-staging");
         let _ = std::fs::remove_file(&staged);
-        if let Err(e) = std::fs::copy(&backup_path, &staged) {
+        if let Err(e) = std::fs::copy(backup_path, &staged) {
             let _ = std::fs::remove_file(&staged);
             return Err(e.into());
         }
