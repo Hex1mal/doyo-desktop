@@ -297,23 +297,13 @@ impl NodeService {
         id: &str,
         due_date: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Node> {
-        let mut node = self.repo.get(id)?;
-        node.properties.due_date = due_date;
-        let props_str = serde_json::to_string(&node.properties)?;
-        let conn = self.repo.db.conn.lock().unwrap();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
-            rusqlite::params![&props_str, &now, id],
-        )?;
-        let node = conn
-            .query_row(
-                "SELECT * FROM nodes WHERE id = ?1",
-                rusqlite::params![id],
-                |row| Ok(super::repository::map_node(row)),
-            )
-            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
-        drop(conn);
+        self.repo.get(id)?;
+        // Patch only due_date; a full-blob rewrite here would drop any property
+        // key this build does not model.
+        let patch = serde_json::json!({
+            "due_date": due_date.map(|d| d.to_rfc3339()),
+        });
+        let node = self.repo.patch_properties(id, &patch)?;
         self.activity_repo.log(
             id,
             "updated",
@@ -326,23 +316,10 @@ impl NodeService {
         if Priority::from_i32(priority).is_none() {
             return Err(Error::Validation(format!("Invalid priority: {}", priority)));
         }
-        let mut node = self.repo.get(id)?;
-        node.properties.priority = Some(priority);
-        let props_str = serde_json::to_string(&node.properties)?;
-        let conn = self.repo.db.conn.lock().unwrap();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
-            rusqlite::params![&props_str, &now, id],
-        )?;
-        let node = conn
-            .query_row(
-                "SELECT * FROM nodes WHERE id = ?1",
-                rusqlite::params![id],
-                |row| Ok(super::repository::map_node(row)),
-            )
-            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
-        drop(conn);
+        self.repo.get(id)?;
+        let node = self
+            .repo
+            .patch_properties(id, &serde_json::json!({ "priority": priority }))?;
         self.activity_repo
             .log(id, "updated", &serde_json::json!({"priority": priority}))?;
         Ok(node)
