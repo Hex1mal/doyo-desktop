@@ -37,7 +37,7 @@ Screenshots are not committed by default so the repository stays small. Add rele
 For Debian-based Linux distributions, install the generated package:
 
 ```bash
-sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+sudo apt install ./target/release/bundle/deb/*.deb
 ```
 
 See [Installation](docs/INSTALLATION.md) for system dependencies, build artifacts, and desktop integration notes.
