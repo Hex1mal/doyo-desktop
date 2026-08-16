@@ -28,13 +28,16 @@ npm run tauri build
 Generated Linux packages are written under:
 
 ```text
-src-tauri/target/release/bundle/
+target/release/bundle/
 ```
+
+Doyo is a Cargo workspace, so build output goes to `target/` at the repository
+root rather than inside `src-tauri/`.
 
 ## Install The Debian Package
 
 ```bash
-sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+sudo apt install ./target/release/bundle/deb/*.deb
 ```
 
 ## Desktop Entry
