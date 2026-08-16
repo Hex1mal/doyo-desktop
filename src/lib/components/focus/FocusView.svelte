@@ -293,7 +293,6 @@
   <div class="focus-toolbar">
     <div>
       <h2>Productivity Methods</h2>
-      <p>Methods operate on the existing task hierarchy, time blocks, and focus sessions.</p>
     </div>
     <div class="tabs" aria-label="Productivity method">
       <button class:active={methodTab === 'focus'} onclick={() => (methodTab = 'focus')}
@@ -336,48 +335,54 @@
       </div>
 
       {#if methodTab === 'focus'}
-        <div class="settings-grid">
-          <label
-            >Focus <input
-              type="number"
-              min="0.02"
-              step="0.1"
-              value={uiStore.focusPrefs.focusMinutes}
-              onchange={(event) =>
-                updateNumber('focusMinutes', (event.target as HTMLInputElement).value)}
-            /></label
-          >
-          <label
-            >Short break <input
-              type="number"
-              min="0.02"
-              step="0.1"
-              value={uiStore.focusPrefs.shortBreakMinutes}
-              onchange={(event) =>
-                updateNumber('shortBreakMinutes', (event.target as HTMLInputElement).value)}
-            /></label
-          >
-          <label
-            >Long break <input
-              type="number"
-              min="0.02"
-              step="0.1"
-              value={uiStore.focusPrefs.longBreakMinutes}
-              onchange={(event) =>
-                updateNumber('longBreakMinutes', (event.target as HTMLInputElement).value)}
-            /></label
-          >
-          <label
-            >Long interval <input
-              type="number"
-              min="1"
-              step="1"
-              value={uiStore.focusPrefs.longBreakInterval}
-              onchange={(event) => updateInterval((event.target as HTMLInputElement).value)}
-            /></label
-          >
-          <label>Cycle <input type="number" min="1" step="1" bind:value={cycle} /></label>
-        </div>
+        <!-- Durations are set once and then rarely touched, so they sit behind a
+             disclosure instead of five spinners competing with the timer and the
+             start button every time this page opens. -->
+        <details class="timer-settings">
+          <summary>Timer settings</summary>
+          <div class="settings-grid">
+            <label
+              >Focus <input
+                type="number"
+                min="0.02"
+                step="0.1"
+                value={uiStore.focusPrefs.focusMinutes}
+                onchange={(event) =>
+                  updateNumber('focusMinutes', (event.target as HTMLInputElement).value)}
+              /></label
+            >
+            <label
+              >Short break <input
+                type="number"
+                min="0.02"
+                step="0.1"
+                value={uiStore.focusPrefs.shortBreakMinutes}
+                onchange={(event) =>
+                  updateNumber('shortBreakMinutes', (event.target as HTMLInputElement).value)}
+              /></label
+            >
+            <label
+              >Long break <input
+                type="number"
+                min="0.02"
+                step="0.1"
+                value={uiStore.focusPrefs.longBreakMinutes}
+                onchange={(event) =>
+                  updateNumber('longBreakMinutes', (event.target as HTMLInputElement).value)}
+              /></label
+            >
+            <label
+              >Long interval <input
+                type="number"
+                min="1"
+                step="1"
+                value={uiStore.focusPrefs.longBreakInterval}
+                onchange={(event) => updateInterval((event.target as HTMLInputElement).value)}
+              /></label
+            >
+            <label>Cycle <input type="number" min="1" step="1" bind:value={cycle} /></label>
+          </div>
+        </details>
       {/if}
 
       <label>
@@ -402,39 +407,38 @@
       {/if}
 
       {#if methodTab === 'focus'}
-        <div class="actions">
-          <button
-            class="primary"
-            disabled={Boolean(focusStore.active) || mode !== 'pomodoro'}
-            onclick={() => startPomodoro('focus')}>Start Focus</button
-          >
-          <button
-            disabled={Boolean(focusStore.active) || mode !== 'pomodoro'}
-            onclick={() => startPomodoro(breakPhase())}>Start Break</button
-          >
-          <button
-            class="primary"
-            disabled={Boolean(focusStore.active) || mode !== 'stopwatch'}
-            onclick={() => focusStore.startStopwatch(selectedTaskId || null, note)}
-            >Start Stopwatch</button
-          >
-          <button
-            disabled={!focusStore.active || focusStore.active.state !== 'running'}
-            onclick={() => focusStore.pause()}>Pause</button
-          >
-          <button
-            disabled={!focusStore.active || focusStore.active.state !== 'paused'}
-            onclick={() => focusStore.resume()}>Resume</button
-          >
-          <button
-            disabled={!focusStore.active}
-            onclick={() => stopActive(focusStore.active?.method === 'stopwatch')}>Stop</button
-          >
-          <button
-            disabled={!focusStore.active || focusStore.active.method !== 'pomodoro'}
-            onclick={() => stopActive(true)}>Complete Period</button
-          >
-        </div>
+        <!-- Starting and running are different moments. Showing all seven
+             controls at once meant most of the row was permanently dimmed and
+             the one button that mattered had to be hunted for. Nothing was
+             removed: each action still appears whenever it can be used. -->
+        {#if focusStore.active}
+          <div class="actions">
+            {#if focusStore.active.state === 'running'}
+              <button class="primary" onclick={() => focusStore.pause()}>Pause</button>
+            {:else if focusStore.active.state === 'paused'}
+              <button class="primary" onclick={() => focusStore.resume()}>Resume</button>
+            {/if}
+            {#if focusStore.active.method === 'pomodoro'}
+              <button onclick={() => stopActive(true)}>Complete Period</button>
+            {/if}
+            <button onclick={() => stopActive(focusStore.active?.method === 'stopwatch')}
+              >Stop</button
+            >
+          </div>
+        {:else}
+          <div class="actions">
+            {#if mode === 'pomodoro'}
+              <button class="primary" onclick={() => startPomodoro('focus')}>Start Focus</button>
+              <button onclick={() => startPomodoro(breakPhase())}>Start Break</button>
+            {:else}
+              <button
+                class="primary"
+                onclick={() => focusStore.startStopwatch(selectedTaskId || null, note)}
+                >Start Stopwatch</button
+              >
+            {/if}
+          </div>
+        {/if}
       {:else if methodTab === 'timebox'}
         <div class="method-panel">
           <label>Start <input type="datetime-local" bind:value={timeboxStart} /></label>
@@ -601,7 +605,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg-panel);
   }
-  .focus-toolbar p,
   .timer-face small,
   .summary-panel span,
   .history-panel span,
@@ -679,6 +682,35 @@
   .timer-face strong {
     font-size: 44px;
     line-height: 1;
+  }
+  .timer-settings {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  .timer-settings summary {
+    cursor: pointer;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    list-style: none;
+  }
+  .timer-settings summary::-webkit-details-marker {
+    display: none;
+  }
+  .timer-settings summary::before {
+    content: '▸ ';
+    color: var(--text-tertiary);
+  }
+  .timer-settings[open] summary::before {
+    content: '▾ ';
+  }
+  .timer-settings summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .timer-settings[open] .settings-grid {
+    margin-top: 10px;
   }
   .settings-grid {
     display: grid;

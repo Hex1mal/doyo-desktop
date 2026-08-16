@@ -63,23 +63,18 @@
   <header class="kanban-toolbar">
     <div>
       <h2>Kanban</h2>
-      <p>
-        Columns are projections of existing tasks. Dragging changes the selected grouping field.
-      </p>
     </div>
-    <label>
-      Columns
-      <select value={mode} onchange={(e) => setMode((e.target as HTMLSelectElement).value)}>
-        <option value="status">Status</option>
-        <option value="priority">Priority</option>
-        <option value="tag">Tag</option>
-        <option value="workspace">Workspace</option>
-        <option value="group">Group/Subgroup</option>
-      </select>
-    </label>
-    <div class="mode-buttons" aria-label="Kanban grouping mode">
+    <!-- One control per setting. A select and a button group side by side both
+         drove `mode`, so the same choice was offered twice with two different
+         current-value indicators. The buttons stay: all five options are visible
+         and reachable in one click. -->
+    <div class="mode-buttons" role="group" aria-label="Group columns by">
       {#each ['status', 'priority', 'tag', 'workspace', 'group'] as option}
-        <button class:active={mode === option} onclick={() => setMode(option)}>
+        <button
+          class:active={mode === option}
+          aria-pressed={mode === option}
+          onclick={() => setMode(option)}
+        >
           {option === 'group' ? 'Group' : option[0].toUpperCase() + option.slice(1)}
         </button>
       {/each}
@@ -167,11 +162,6 @@
   .kanban-toolbar h2 {
     margin: 0;
     font-size: var(--text-lg);
-  }
-  .kanban-toolbar p {
-    margin: 3px 0 0;
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
   }
   .kanban-toolbar label,
   .status-editor,

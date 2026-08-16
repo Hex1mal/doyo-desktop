@@ -90,7 +90,6 @@
   <div class="view-header">
     <div>
       <h2>Habits</h2>
-      <p>Daily and weekly trackers stored locally with real habit logs.</p>
     </div>
     <label class="inline">
       <input
@@ -145,7 +144,11 @@
   {#if habitStore.isLoading}
     <div class="empty-state small"><p>Loading habits...</p></div>
   {:else if habitStore.habits.length === 0}
-    <div class="empty-state small"><p>No habits yet</p></div>
+    <div class="empty-state small">
+      <p class="empty-title">No habits yet</p>
+      <p>Habits are the things you want to repeat daily or on set weekdays.</p>
+      <p class="empty-hint">Add your first one above to start building a streak.</p>
+    </div>
   {:else}
     <div class="habit-list">
       {#each habitStore.habits as habit (habit.id)}
@@ -291,9 +294,6 @@
   }
   .view-header {
     justify-content: space-between;
-  }
-  .view-header p {
-    color: var(--text-tertiary);
   }
   .summary-strip {
     display: grid;

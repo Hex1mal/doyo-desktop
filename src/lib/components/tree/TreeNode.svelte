@@ -1124,40 +1124,22 @@
   .type-dot.other {
     background: var(--text-tertiary);
   }
+  /* The kind label is context, not content. It used to be the loudest thing in
+     every row - bold, saturated, and filled - while the title it described was
+     plain text, so the eye landed on a word that repeats down the whole list
+     instead of on the node's name. Its colour also restated the swatch already
+     sitting two elements to its left. Now it reads as a quiet caption and the
+     title carries the row. */
   .type-chip {
     flex-shrink: 0;
-    min-width: 48px;
-    text-align: center;
-    padding: 1px 6px;
-    border-radius: 4px;
+    min-width: 44px;
+    text-align: right;
+    padding: 1px 2px;
     font-size: 10px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--bg-hover);
-  }
-  .type-chip.workspace {
-    color: var(--node-color, var(--accent));
-    background: color-mix(in srgb, var(--node-color, var(--accent)) 12%, transparent);
-  }
-  .type-chip.group {
-    color: var(--node-color, var(--info));
-    background: color-mix(in srgb, var(--node-color, var(--info)) 12%, transparent);
-  }
-  .type-chip.subgroup {
-    color: var(--node-color, #0ea5e9);
-    background: color-mix(in srgb, var(--node-color, #0ea5e9) 13%, transparent);
-  }
-  .type-chip.task {
-    color: var(--node-color, var(--success));
-    background: color-mix(in srgb, var(--node-color, var(--success)) 12%, transparent);
-  }
-  .type-chip.subtask {
-    color: var(--node-color, var(--warning));
-    background: color-mix(in srgb, var(--node-color, var(--warning)) 14%, transparent);
-  }
-  .type-chip.note {
-    color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.12);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-tertiary);
+    background: none;
   }
   .branch {
     color: var(--text-tertiary);
@@ -1187,6 +1169,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-primary);
+    /* The name is the content of the row, so it outweighs the metadata around it. */
+    font-weight: 500;
   }
   .title.strikethrough {
     text-decoration: line-through;

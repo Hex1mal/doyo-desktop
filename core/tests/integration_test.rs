@@ -32,6 +32,40 @@ fn setup() -> NodeService {
     NodeService::new(setup_db())
 }
 
+/// Create a real, migrated Doyo database on disk holding one identifiable
+/// workspace. Backup tests need genuine databases now that restore validates
+/// its input.
+fn write_real_database(path: &std::path::Path, marker: &str) {
+    let _ = std::fs::remove_file(path);
+    for suffix in ["-wal", "-shm"] {
+        let mut name = path.file_name().unwrap().to_os_string();
+        name.push(suffix);
+        let _ = std::fs::remove_file(path.with_file_name(name));
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let db = Arc::new(Database::open(path).unwrap());
+    run_migrations(&db).unwrap();
+    let mut service = NodeService::new(db.clone());
+    create_node(&mut service, None, NodeType::Workspace, marker);
+}
+
+/// Read workspace titles from a database file without disturbing it.
+fn workspace_titles(path: &std::path::Path) -> Vec<String> {
+    let db = Database::open(path).expect("database is not openable");
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT title FROM nodes WHERE type = 'Workspace' ORDER BY title")
+        .expect("nodes table is missing");
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    rows
+}
+
 fn create_node(
     service: &mut NodeService,
     parent_id: Option<String>,
@@ -883,31 +917,476 @@ fn test_settings_repository_lists_prefixed_values() {
         .is_none());
 }
 
+/// Regression: property writes round-tripped through `NodeProperties`, so any
+/// key the struct does not declare was silently dropped. A single unrelated edit
+/// could erase metadata written by another view or a newer build.
+#[test]
+fn test_property_writes_preserve_unknown_and_unrelated_keys() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let task = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    // Metadata written by other views plus a key this build does not model.
+    let stored = r#"{
+        "priority": 1,
+        "due_date": "2026-08-16T09:00:00+00:00",
+        "custom": {"gtdState":"next","eisenhowerQuadrant":"q1","paretoImpact":9},
+        "futureFeatureField": {"keep": "me"}
+    }"#;
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE nodes SET properties = ?1 WHERE id = ?2",
+            rusqlite::params![stored, &task.id],
+        )
+        .unwrap();
+
+    let read_properties = |id: &str| -> serde_json::Value {
+        let conn = db.conn.lock().unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT properties FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&raw).unwrap()
+    };
+
+    // A single-field intent must not disturb anything else.
+    service.set_priority(&task.id, 2).unwrap();
+    let after = read_properties(&task.id);
+    assert_eq!(after["priority"], 2);
+    assert_eq!(after["custom"]["gtdState"], "next");
+    assert_eq!(after["custom"]["eisenhowerQuadrant"], "q1");
+    assert_eq!(after["custom"]["paretoImpact"], 9);
+    assert_eq!(after["futureFeatureField"]["keep"], "me");
+    assert_eq!(after["due_date"], "2026-08-16T09:00:00+00:00");
+
+    // Same for the due-date intent, including clearing it.
+    service.set_due_date(&task.id, None).unwrap();
+    let after = read_properties(&task.id);
+    assert!(
+        after.get("due_date").is_none(),
+        "clearing the due date should remove the key"
+    );
+    assert_eq!(after["priority"], 2);
+    assert_eq!(after["custom"]["gtdState"], "next");
+    assert_eq!(after["futureFeatureField"]["keep"], "me");
+
+    // And for a partial update through the generic update path.
+    service
+        .update(
+            &task.id,
+            UpdateNodeInput {
+                properties: Some(NodeProperties {
+                    color: Some("#336699".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let after = read_properties(&task.id);
+    assert_eq!(after["color"], "#336699");
+    assert_eq!(after["priority"], 2);
+    assert_eq!(after["custom"]["gtdState"], "next");
+    assert_eq!(after["futureFeatureField"]["keep"], "me");
+}
+
+/// Regression: `get_full_tree(None)` is the query the whole UI loads from, and it
+/// used to walk the hierarchy with a recursive CTE that SQLite planned as a
+/// nested loop — 100 ms at 1k nodes, 11 s at 10k, over 5 minutes at 50k.
+///
+/// Asserts the flat query returns exactly the reachable set, and puts a loose
+/// ceiling on the time so a return to quadratic behaviour fails here rather than
+/// in front of a user. The bound is ~20x the observed cost and ~100x below the
+/// broken version, so it flags a real regression without being timing-flaky.
+#[test]
+fn test_full_tree_stays_linear_and_complete() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+
+    let mut expected = std::collections::HashSet::new();
+    let mut deleted_group = None;
+    for w in 0..5 {
+        let workspace = create_node(&mut service, None, NodeType::Workspace, &format!("W{w}"));
+        expected.insert(workspace.id.clone());
+        for g in 0..5 {
+            let group = group(&mut service, &workspace.id, &format!("G{w}-{g}"));
+            expected.insert(group.id.clone());
+            let mut parent = group.id.clone();
+            for t in 0..40 {
+                let node = task(&mut service, &parent, &format!("T{w}-{g}-{t}"));
+                expected.insert(node.id.clone());
+                // Nest every fifth task to keep the hierarchy genuinely deep.
+                if t % 5 == 4 {
+                    parent = node.id.clone();
+                }
+            }
+            if w == 0 && g == 0 {
+                deleted_group = Some(group.id.clone());
+            }
+        }
+    }
+
+    // A deleted subtree must not come back, including its descendants.
+    let deleted_group = deleted_group.unwrap();
+    let removed: Vec<String> = std::iter::once(deleted_group.clone())
+        .chain(
+            service
+                .get_descendants(&deleted_group)
+                .unwrap()
+                .into_iter()
+                .map(|node| node.id),
+        )
+        .collect();
+    service.delete(&deleted_group, false).unwrap();
+    for id in &removed {
+        expected.remove(id);
+    }
+
+    let start = std::time::Instant::now();
+    let tree = service.get_full_tree(None).unwrap();
+    let elapsed = start.elapsed();
+
+    let returned: std::collections::HashSet<String> =
+        tree.iter().map(|node| node.id.clone()).collect();
+    assert_eq!(
+        returned, expected,
+        "flat tree query returned a different set than the reachable hierarchy"
+    );
+    assert!(
+        elapsed.as_millis() < 2_000,
+        "get_full_tree took {elapsed:?} for {} nodes; the hierarchy walk has gone non-linear again",
+        tree.len()
+    );
+}
+
+/// Regression: each productivity view owns a few keys inside `custom` and knows
+/// nothing about the others. Views used to send a merged snapshot of the whole
+/// bag, so two edits racing on a stale client copy could silently revert one
+/// another. Patching merges by sub-key against the stored value instead.
+#[test]
+fn test_custom_patches_merge_by_sub_key_against_stored_state() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    let read_custom = |id: &str| -> serde_json::Value {
+        let conn = db.conn.lock().unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT properties FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str::<serde_json::Value>(&raw).unwrap()["custom"].clone()
+    };
+
+    // Three views each write the key they own, one after another. None of them
+    // sends, or needs to know about, the others' keys.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"gtdState": "next"}}),
+        )
+        .unwrap();
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"eisenhowerQuadrant": "q1"}}),
+        )
+        .unwrap();
+    service
+        .patch_properties(&node.id, serde_json::json!({"custom": {"status": "Doing"}}))
+        .unwrap();
+
+    let custom = read_custom(&node.id);
+    assert_eq!(custom["gtdState"], "next");
+    assert_eq!(custom["eisenhowerQuadrant"], "q1");
+    assert_eq!(custom["status"], "Doing");
+
+    // A stale writer that only knows about gtdState cannot revert the others.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"gtdState": "waiting"}}),
+        )
+        .unwrap();
+    let custom = read_custom(&node.id);
+    assert_eq!(custom["gtdState"], "waiting");
+    assert_eq!(
+        custom["eisenhowerQuadrant"], "q1",
+        "an unrelated sub-key was lost"
+    );
+    assert_eq!(custom["status"], "Doing", "an unrelated sub-key was lost");
+
+    // A null sub-key removes just that entry.
+    service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"custom": {"status": serde_json::Value::Null}}),
+        )
+        .unwrap();
+    let custom = read_custom(&node.id);
+    assert!(custom.get("status").is_none());
+    assert_eq!(custom["gtdState"], "waiting");
+    assert_eq!(custom["eisenhowerQuadrant"], "q1");
+}
+
+/// Patching one modelled key must not disturb the others, and must be able to
+/// clear a key without sending the rest of the node.
+#[test]
+fn test_patch_properties_touches_only_named_keys() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = task_with_properties(
+        &mut service,
+        &workspace.id,
+        "Task",
+        NodeProperties {
+            priority: Some(2),
+            due_date: Some(chrono::Utc::now()),
+            color: Some("#111111".into()),
+            custom: Some(serde_json::json!({"gtdState": "next"})),
+            ..Default::default()
+        },
+    );
+
+    // What the colour picker now sends.
+    let after = service
+        .patch_properties(&node.id, serde_json::json!({"color": "#336699"}))
+        .unwrap();
+    assert_eq!(after.properties.color.as_deref(), Some("#336699"));
+    assert_eq!(after.properties.priority, Some(2));
+    assert!(after.properties.due_date.is_some());
+    assert_eq!(
+        after.properties.custom.as_ref().unwrap()["gtdState"],
+        "next"
+    );
+
+    // And clearing it leaves everything else alone.
+    let after = service
+        .patch_properties(
+            &node.id,
+            serde_json::json!({"color": serde_json::Value::Null}),
+        )
+        .unwrap();
+    assert!(after.properties.color.is_none());
+    assert_eq!(after.properties.priority, Some(2));
+    assert_eq!(
+        after.properties.custom.as_ref().unwrap()["gtdState"],
+        "next"
+    );
+}
+
+/// Guard: `KNOWN_PROPERTY_KEYS` is what `replace_properties` treats as its own
+/// surface. If a field is added to `NodeProperties` without being listed there,
+/// replace would stop clearing it and it would silently become sticky.
+#[test]
+fn test_known_property_keys_match_the_struct() {
+    let fully_populated = NodeProperties {
+        due_date: Some(chrono::Utc::now()),
+        start_date: Some(chrono::Utc::now()),
+        priority: Some(1),
+        reminders: Some(vec![]),
+        recurrence: Some(doyo_core::node::model::RecurrenceConfig {
+            pattern: "daily".into(),
+            interval: 1,
+            days: None,
+        }),
+        estimated_duration_minutes: Some(30),
+        custom: Some(serde_json::json!({})),
+        icon: Some("x".into()),
+        color: Some("#fff".into()),
+        pinned: Some(true),
+        favorite: Some(true),
+    };
+    let serde_json::Value::Object(map) = serde_json::to_value(&fully_populated).unwrap() else {
+        panic!("NodeProperties should serialize to an object");
+    };
+    let mut serialized: Vec<String> = map.keys().cloned().collect();
+    serialized.sort();
+    let mut declared: Vec<String> = doyo_core::node::model::KNOWN_PROPERTY_KEYS
+        .iter()
+        .map(|key| key.to_string())
+        .collect();
+    declared.sort();
+    assert_eq!(
+        serialized, declared,
+        "KNOWN_PROPERTY_KEYS is out of step with NodeProperties"
+    );
+}
+
+/// Regression: the frontend builds its replacement from a normalized node that
+/// only contains modelled keys, so a whole-blob write meant an ordinary edit such
+/// as picking a node colour deleted metadata written by a newer build.
+#[test]
+fn test_replace_properties_preserves_keys_it_does_not_model() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let node = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    let stored = r#"{
+        "priority": 1,
+        "due_date": "2026-08-16T09:00:00+00:00",
+        "custom": {"gtdState": "next"},
+        "futureFeatureField": {"keep": "me"}
+    }"#;
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE nodes SET properties = ?1 WHERE id = ?2",
+            rusqlite::params![stored, &node.id],
+        )
+        .unwrap();
+
+    let read = |id: &str| -> serde_json::Value {
+        let conn = db.conn.lock().unwrap();
+        let raw: String = conn
+            .query_row(
+                "SELECT properties FROM nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&raw).unwrap()
+    };
+
+    // Exactly what the colour picker sends: the store's view of the node
+    // (modelled keys only) with a colour added and the due date dropped.
+    service
+        .replace_properties(
+            &node.id,
+            NodeProperties {
+                priority: Some(1),
+                custom: Some(serde_json::json!({"gtdState": "next"})),
+                color: Some("#336699".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let after = read(&node.id);
+    assert_eq!(after["color"], "#336699");
+    assert_eq!(after["priority"], 1);
+    assert_eq!(after["custom"]["gtdState"], "next");
+    assert_eq!(
+        after["futureFeatureField"]["keep"], "me",
+        "a colour change destroyed a key this build does not model"
+    );
+    // Replace must still clear a modelled key the caller omitted.
+    assert!(
+        after.get("due_date").is_none(),
+        "replace no longer clears omitted modelled keys"
+    );
+}
+
+/// Regression: properties that fail to parse into `NodeProperties` were replaced
+/// with defaults on read, and the emptied struct was then written back, so the
+/// next unrelated edit destroyed the whole blob.
+#[test]
+fn test_unparseable_properties_survive_an_unrelated_write() {
+    let db = setup_db();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "WS");
+    let task = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "Task",
+    );
+
+    // Valid JSON, but `due_date` is date-only and cannot deserialize into
+    // DateTime<Utc>. An importer or older build could plausibly write this.
+    let stored = r#"{"due_date":"2026-08-16","priority":1,"custom":{"gtdState":"next"}}"#;
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE nodes SET properties = ?1 WHERE id = ?2",
+            rusqlite::params![stored, &task.id],
+        )
+        .unwrap();
+
+    service.set_priority(&task.id, 3).unwrap();
+
+    let raw: String = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT properties FROM nodes WHERE id = ?1",
+            rusqlite::params![&task.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let after: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(after["priority"], 3);
+    assert_eq!(
+        after["custom"]["gtdState"], "next",
+        "unrelated metadata was destroyed by a single-field write"
+    );
+    assert_eq!(
+        after["due_date"], "2026-08-16",
+        "an unparseable value must be left alone, not silently dropped"
+    );
+}
+
 #[test]
 fn test_backup_service_create_prune_and_restore() {
     let root = std::env::temp_dir().join(format!("doyo-backup-test-{}", uuid::Uuid::now_v7()));
     let backup_dir = root.join("backups");
     std::fs::create_dir_all(&root).unwrap();
     let db_path = root.join("doyo.db");
-    std::fs::write(&db_path, b"original").unwrap();
+    write_real_database(&db_path, "original");
 
     let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 2);
     let first_path = backups.create_backup().unwrap();
     assert!(first_path.exists());
 
-    std::fs::write(&db_path, b"changed").unwrap();
+    write_real_database(&db_path, "changed");
     let second_path = backups.create_backup().unwrap();
     assert!(second_path.exists());
 
-    std::fs::write(&db_path, b"changed again").unwrap();
+    write_real_database(&db_path, "changed again");
     backups
         .restore_backup(&first_path.file_name().unwrap().to_string_lossy())
         .unwrap();
-    assert_eq!(std::fs::read(&db_path).unwrap(), b"original");
+    assert_eq!(workspace_titles(&db_path), vec!["original".to_string()]);
 
-    std::fs::write(&db_path, b"third").unwrap();
+    write_real_database(&db_path, "third");
     backups.create_backup().unwrap();
-    assert!(backups.list_backups().unwrap().len() <= 2);
+    let routine = backups
+        .list_backups()
+        .unwrap()
+        .into_iter()
+        .filter(|name| !name.starts_with(doyo_core::backup::PRE_RESTORE_PREFIX))
+        .count();
+    assert!(routine <= 2, "routine backups exceeded the prune budget");
 
     std::fs::remove_dir_all(root).unwrap();
 }
@@ -918,15 +1397,294 @@ fn test_backup_restore_rejects_path_traversal() {
     let backup_dir = root.join("backups");
     std::fs::create_dir_all(&backup_dir).unwrap();
     let db_path = root.join("doyo.db");
-    std::fs::write(&db_path, b"original").unwrap();
-    std::fs::write(backup_dir.join("safe.db"), b"backup").unwrap();
+    write_real_database(&db_path, "original");
+    write_real_database(&backup_dir.join("safe.db"), "backup");
 
     let backups = BackupService::new(db_path.clone(), backup_dir, 10);
     assert!(backups.restore_backup("../safe.db").is_err());
     assert!(backups.restore_backup("/tmp/safe.db").is_err());
     assert!(backups.restore_backup("nested/safe.db").is_err());
     backups.restore_backup("safe.db").unwrap();
-    assert_eq!(std::fs::read(&db_path).unwrap(), b"backup");
+    assert_eq!(workspace_titles(&db_path), vec!["backup".to_string()]);
+
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: restoring a file that is not a valid Doyo database used to
+/// overwrite the live database unconditionally, destroying the user's only copy
+/// and still reporting success.
+#[test]
+fn test_restore_rejects_invalid_backups_without_touching_live_database() {
+    let root = std::env::temp_dir().join(format!("doyo-backup-invalid-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "precious");
+
+    // Not SQLite at all.
+    std::fs::write(backup_dir.join("garbage.db"), b"this is not a database").unwrap();
+    // Valid SQLite, but not a Doyo database.
+    {
+        let other = Database::open(&backup_dir.join("foreign.db")).unwrap();
+        other
+            .conn
+            .lock()
+            .unwrap()
+            .execute_batch("CREATE TABLE unrelated (x INTEGER);")
+            .unwrap();
+    }
+    // A Doyo database truncated mid-file.
+    let truncated = backup_dir.join("truncated.db");
+    write_real_database(&truncated, "half");
+    {
+        let bytes = std::fs::read(&truncated).unwrap();
+        std::fs::write(&truncated, &bytes[..bytes.len() / 3]).unwrap();
+    }
+
+    let backups = BackupService::new(db_path.clone(), backup_dir, 10);
+    for name in ["garbage.db", "foreign.db", "truncated.db"] {
+        assert!(
+            backups.restore_backup(name).is_err(),
+            "restore accepted invalid backup {name}"
+        );
+        assert_eq!(
+            workspace_titles(&db_path),
+            vec!["precious".to_string()],
+            "live database was damaged by rejected backup {name}"
+        );
+    }
+
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: after a restore the running session must see the restored data
+/// without an app restart, and must not be able to undo its way back into rows
+/// from the database that was replaced.
+#[test]
+fn test_reopen_activates_restored_database_for_live_services() {
+    let root = std::env::temp_dir().join(format!("doyo-reopen-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&root).unwrap();
+    let db_path = root.join("doyo.db");
+
+    // A session running against the original database.
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let mut service = NodeService::new(db.clone());
+    let workspace = create_node(&mut service, None, NodeType::Workspace, "original");
+
+    let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 10);
+    db.conn
+        .lock()
+        .unwrap()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+    let backup = backups.create_backup().unwrap();
+    let backup_name = backup.file_name().unwrap().to_string_lossy().to_string();
+
+    // Diverge, so the restore has something to roll back.
+    let after = create_node(
+        &mut service,
+        Some(workspace.id.clone()),
+        NodeType::Task,
+        "created-after-backup",
+    );
+    assert!(
+        service.can_undo(),
+        "undo history should exist before restore"
+    );
+
+    // What the Tauri command does: checkpoint, release the file, restore, reopen.
+    db.conn
+        .lock()
+        .unwrap()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+    db.detach().unwrap();
+    backups.restore_backup(&backup_name).unwrap();
+    db.reopen(&db_path).unwrap();
+    run_migrations(&db).unwrap();
+    service.reset_history();
+
+    // The same service instance now reads the restored database.
+    assert!(
+        service.get(&after.id).is_err(),
+        "service still sees a node that the restore removed"
+    );
+    let roots = service.get_children(None).unwrap();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].title, "original");
+
+    // Undo history from the replaced database must not be replayable.
+    assert!(
+        !service.can_undo(),
+        "undo history survived the restore and could resurrect stale rows"
+    );
+
+    // And the reopened handle is fully writable, not a read-only leftover.
+    let fresh = create_node(
+        &mut service,
+        Some(roots[0].id.clone()),
+        NodeType::Task,
+        "written-after-restore",
+    );
+    assert_eq!(
+        service.get(&fresh.id).unwrap().title,
+        "written-after-restore"
+    );
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: restoring a backup written against an older schema must migrate
+/// it up, not leave the session on a schema the code no longer matches.
+#[test]
+fn test_restored_older_schema_is_migrated_on_activation() {
+    let root = std::env::temp_dir().join(format!("doyo-oldschema-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "current");
+
+    // Build a backup that stops at schema v1.
+    let old_backup = backup_dir.join("old-schema.db");
+    {
+        let old = Database::open(&old_backup).unwrap();
+        let conn = old.conn.lock().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_version (
+                version INTEGER PRIMARY KEY NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+                description TEXT
+            );",
+        )
+        .unwrap();
+        conn.execute_batch(include_str!("../src/db/migrations/001_initial.sql"))
+            .unwrap();
+        conn.execute(
+            "INSERT INTO schema_version (version, description) VALUES (1, 'Initial schema')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+    }
+
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let backups = BackupService::new(db_path.clone(), backup_dir, 10);
+
+    db.detach().unwrap();
+    backups.restore_backup("old-schema.db").unwrap();
+    db.reopen(&db_path).unwrap();
+    run_migrations(&db).unwrap();
+
+    let version: i32 = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        version,
+        doyo_core::db::LATEST_SCHEMA_VERSION,
+        "restored older backup was not migrated up"
+    );
+
+    // Tables added by later migrations must exist and be usable.
+    let mut service = NodeService::new(db.clone());
+    let ws = create_node(&mut service, None, NodeType::Workspace, "after-upgrade");
+    assert_eq!(service.get(&ws.id).unwrap().title, "after-upgrade");
+    let habits: i64 = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM habits", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(habits, 0);
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: a failed restore must leave the session pointed at a working
+/// database rather than the scratch connection used during the swap.
+#[test]
+fn test_failed_restore_leaves_live_database_usable() {
+    let root = std::env::temp_dir().join(format!("doyo-failrestore-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&backup_dir).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "precious");
+
+    let db = Arc::new(Database::open(&db_path).unwrap());
+    run_migrations(&db).unwrap();
+    let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 10);
+    std::fs::write(backup_dir.join("broken.db"), b"not a database").unwrap();
+
+    db.detach().unwrap();
+    let result = backups.restore_backup("broken.db");
+    assert!(result.is_err(), "invalid restore should fail");
+
+    // Recovery path: reattach to the untouched live database.
+    db.reopen(&db_path).unwrap();
+    let service = NodeService::new(db.clone());
+    let roots = service.get_children(None).unwrap();
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].title, "precious");
+
+    drop(service);
+    drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+/// Regression: a restore must be reversible even when the caller does not ask
+/// for a safety backup, and must not leave the replaced database's WAL behind.
+#[test]
+fn test_restore_snapshots_live_database_and_clears_stale_sidecars() {
+    let root = std::env::temp_dir().join(format!("doyo-backup-snapshot-{}", uuid::Uuid::now_v7()));
+    let backup_dir = root.join("backups");
+    std::fs::create_dir_all(&root).unwrap();
+    let db_path = root.join("doyo.db");
+    write_real_database(&db_path, "before-restore");
+
+    let backups = BackupService::new(db_path.clone(), backup_dir.clone(), 10);
+    let backup = backups.create_backup().unwrap();
+    let backup_name = backup.file_name().unwrap().to_string_lossy().to_string();
+
+    // Diverge the live database, leaving WAL content behind.
+    write_real_database(&db_path, "after-backup");
+    assert_eq!(workspace_titles(&db_path), vec!["after-backup".to_string()]);
+
+    let snapshot = backups.restore_backup(&backup_name).unwrap();
+    let snapshot = snapshot.expect("restore did not snapshot the live database");
+    assert!(snapshot.exists(), "pre-restore snapshot missing");
+    assert!(snapshot
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with(doyo_core::backup::PRE_RESTORE_PREFIX));
+
+    // The restored database is the backup, not the diverged live copy.
+    assert_eq!(
+        workspace_titles(&db_path),
+        vec!["before-restore".to_string()]
+    );
+    // Stale sidecars of the replaced database must not survive.
+    assert!(!db_path.with_file_name("doyo.db-wal").exists());
+    assert!(!db_path.with_file_name("doyo.db-shm").exists());
+    // The snapshot still holds the pre-restore state, so the restore is reversible.
+    assert_eq!(
+        workspace_titles(&snapshot),
+        vec!["after-backup".to_string()]
+    );
 
     std::fs::remove_dir_all(root).unwrap();
 }

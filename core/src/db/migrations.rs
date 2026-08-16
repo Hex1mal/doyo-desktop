@@ -1,7 +1,11 @@
 use super::Database;
 
+/// Highest schema version this build knows how to produce and read.
+/// Restore refuses databases newer than this rather than silently mangling them.
+pub const LATEST_SCHEMA_VERSION: i32 = 6;
+
 pub fn run_migrations(db: &Database) -> crate::error::Result<()> {
-    let conn = db.conn.lock().unwrap();
+    let mut conn = db.conn.lock().unwrap();
 
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_version (
@@ -19,78 +23,60 @@ pub fn run_migrations(db: &Database) -> crate::error::Result<()> {
         )
         .unwrap_or(0);
 
-    if current_version < 1 {
-        run_migration_001(&conn)?;
-    }
-    if current_version < 2 {
-        run_migration_002(&conn)?;
-    }
-    if current_version < 3 {
-        run_migration_003(&conn)?;
-    }
-    if current_version < 4 {
-        run_migration_004(&conn)?;
-    }
-    if current_version < 5 {
-        run_migration_005(&conn)?;
-    }
-    if current_version < 6 {
-        run_migration_006(&conn)?;
+    for migration in MIGRATIONS {
+        if current_version >= migration.version {
+            continue;
+        }
+        // Each migration is all-or-nothing. Without this a failure part-way
+        // through leaves a half-applied schema that no later run can recover
+        // from, because the non-idempotent statements would be replayed.
+        let tx = conn.transaction()?;
+        tx.execute_batch(migration.sql)?;
+        tx.execute(
+            "INSERT INTO schema_version (version, description) VALUES (?1, ?2)",
+            rusqlite::params![migration.version, migration.description],
+        )?;
+        tx.commit()?;
     }
 
     Ok(())
 }
 
-fn run_migration_001(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/001_initial.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (1, 'Initial schema')",
-        [],
-    )?;
-    Ok(())
+struct Migration {
+    version: i32,
+    description: &'static str,
+    sql: &'static str,
 }
 
-fn run_migration_002(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/002_time_blocks.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (2, 'Add calendar time blocks')",
-        [],
-    )?;
-    Ok(())
-}
-
-fn run_migration_003(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/003_focus_sessions.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (3, 'Add focus sessions')",
-        [],
-    )?;
-    Ok(())
-}
-
-fn run_migration_004(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/004_productivity_entities.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (4, 'Add saved filters, habits, habit logs, and countdowns')",
-        [],
-    )?;
-    Ok(())
-}
-
-fn run_migration_005(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/005_habit_days.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (5, 'Add habit weekly days column')",
-        [],
-    )?;
-    Ok(())
-}
-
-fn run_migration_006(conn: &rusqlite::Connection) -> crate::error::Result<()> {
-    conn.execute_batch(include_str!("migrations/006_focus_workflow.sql"))?;
-    conn.execute(
-        "INSERT INTO schema_version (version, description) VALUES (6, 'Add focus workflow metadata')",
-        [],
-    )?;
-    Ok(())
-}
+const MIGRATIONS: [Migration; LATEST_SCHEMA_VERSION as usize] = [
+    Migration {
+        version: 1,
+        description: "Initial schema",
+        sql: include_str!("migrations/001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        description: "Add calendar time blocks",
+        sql: include_str!("migrations/002_time_blocks.sql"),
+    },
+    Migration {
+        version: 3,
+        description: "Add focus sessions",
+        sql: include_str!("migrations/003_focus_sessions.sql"),
+    },
+    Migration {
+        version: 4,
+        description: "Add saved filters, habits, habit logs, and countdowns",
+        sql: include_str!("migrations/004_productivity_entities.sql"),
+    },
+    Migration {
+        version: 5,
+        description: "Add habit weekly days column",
+        sql: include_str!("migrations/005_habit_days.sql"),
+    },
+    Migration {
+        version: 6,
+        description: "Add focus workflow metadata",
+        sql: include_str!("migrations/006_focus_workflow.sql"),
+    },
+];

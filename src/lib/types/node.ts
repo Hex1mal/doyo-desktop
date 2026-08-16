@@ -306,3 +306,29 @@ export interface UpdateCountdownInput {
   archived?: boolean;
   position?: number;
 }
+
+export type StartupStatus = 'ok' | 'recovered' | 'ephemeral';
+
+export interface RecoveryCandidate {
+  name: string;
+  source: 'backup' | 'migrationBackup';
+  schemaVersion: number;
+  sizeBytes: number;
+  modifiedAt: string | null;
+}
+
+export interface StartupReport {
+  status: StartupStatus;
+  summary: string | null;
+  detail: string | null;
+  quarantinedPath: string | null;
+  recoveryCandidates: RecoveryCandidate[];
+}
+
+export interface RestoreOutcome {
+  /** Restoring this snapshot undoes the restore that produced it. */
+  snapshotName: string | null;
+  /** True when the restored database is already live and no restart is needed. */
+  activated: boolean;
+  activationError: string | null;
+}

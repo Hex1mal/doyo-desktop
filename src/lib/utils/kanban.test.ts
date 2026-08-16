@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Node, Tag } from '../types/node';
 import type { TaskProjectionItem } from './task-projection';
-import { groupKanbanItems, kanbanColumns, mergeCustomStatus, taskStatus } from './kanban';
+import { groupKanbanItems, kanbanColumns, taskStatus } from './kanban';
 
 function node(partial: Partial<Node>): Node {
   return {
@@ -69,9 +69,11 @@ describe('kanban utilities', () => {
     ).toHaveLength(1);
   });
 
-  it('merges status without losing other custom values', () => {
-    const task = node({ properties: { custom: { frog: true, status: 'Inbox' } } });
-    expect(taskStatus(task)).toBe('Inbox');
-    expect(mergeCustomStatus(task, 'Done')).toEqual({ frog: true, status: 'Done' });
+  it('reads status from custom metadata, defaulting to Inbox', () => {
+    expect(taskStatus(node({ properties: { custom: { frog: true, status: 'Inbox' } } }))).toBe(
+      'Inbox',
+    );
+    expect(taskStatus(node({ properties: { custom: { frog: true } } }))).toBe('Inbox');
+    expect(taskStatus(node({ properties: { custom: { status: 'Done' } } }))).toBe('Done');
   });
 });

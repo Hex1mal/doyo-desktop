@@ -1,9 +1,14 @@
-import { nodeMove, nodeSetPriority, nodeUpdate, tagAssign, tagRemove } from '$lib/api/client';
+import {
+  nodeMove,
+  nodePatchProperties,
+  nodeSetPriority,
+  tagAssign,
+  tagRemove,
+} from '$lib/api/client';
 import { nodeStore } from '$lib/stores/nodes.svelte';
 import { toast } from '$lib/stores/toast.svelte';
 import type { KanbanMode } from '$lib/stores/ui.svelte';
 import type { Node } from '$lib/types/node';
-import { mergeCustomStatus } from '$lib/utils/kanban';
 
 function tagsFor(nodeId: string) {
   return nodeStore.getTagObjects(nodeId);
@@ -13,8 +18,10 @@ export const kanbanStore = {
   async moveTask(task: Node, mode: KanbanMode, columnKey: string, sourceColumnKey?: string) {
     try {
       if (mode === 'status') {
-        const updated = await nodeUpdate(task.id, {
-          properties: { custom: mergeCustomStatus(task, columnKey) },
+        // Only the status key is named. A dragged card carried this board's copy
+        // of every other custom key, which could undo a change made elsewhere.
+        const updated = await nodePatchProperties(task.id, {
+          custom: { status: columnKey },
         });
         nodeStore.upsert(updated);
       } else if (mode === 'priority') {
@@ -68,11 +75,7 @@ export const kanbanStore = {
         );
       });
       for (const task of tasks) {
-        nodeStore.upsert(
-          await nodeUpdate(task.id, {
-            properties: { custom: mergeCustomStatus(task, clean) },
-          }),
-        );
+        nodeStore.upsert(await nodePatchProperties(task.id, { custom: { status: clean } }));
       }
       return true;
     } catch (e) {

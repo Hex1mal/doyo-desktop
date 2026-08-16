@@ -94,7 +94,15 @@ When first launched after upgrading from an older identifier, Doyo copies data f
 
 Use Settings -> Data and Backup to create or restore local SQLite database backups. Backups are stored in the app data directory under `backups/` and are not intended to be committed to Git.
 
+Restore is validated and reversible. Before a backup is applied, Doyo checks that it is an intact SQLite database with a compatible Doyo schema, and refuses anything else rather than overwriting your data. It then snapshots the current database to `doyo-pre-restore-*.db` in the same `backups/` directory and tells you that filename, so any restore can be rolled back. Restart Doyo after restoring to load the restored database.
+
 JSON import/export is a structured transfer format for moving Doyo records between databases. It is not a byte-for-byte backup. Use SQLite backup/restore for exact recovery.
+
+## Reminders And Notifications
+
+Habit and countdown reminders, and focus session alerts, are delivered while Doyo is running. Doyo checks for due reminders about once a minute and sends a desktop notification through the OS notification service.
+
+Doyo does not register reminders with the operating system's scheduler, so reminders do not fire while the app is closed. A reminder that came due while Doyo was closed is delivered on the next launch if it is still due that day.
 
 ## Project Structure
 

@@ -13,6 +13,21 @@
   let completedCount = $derived(nodeStore.getCompletedNodes().length);
   let trashCount = $derived(nodeStore.trashNodes.length);
   let favorites = $derived(nodeStore.getFavorites());
+
+  // These buttons are icon-only and 32px wide, so an uncapped count grows past
+  // the button and hides the very icon it belongs to. Seen at 10k nodes, where
+  // four-digit counts covered the glyphs entirely.
+  function badgeLabel(count: number) {
+    return count > 99 ? '99+' : String(count);
+  }
+
+  // Overdue is a subset of Today - both mean "due before tomorrow" - so the two
+  // counts were never independent. They were also both absolutely positioned in
+  // the same corner and drew on top of each other. One badge counts what the
+  // view will show; its colour carries the warning, its tooltip the breakdown.
+  let todayTitle = $derived(
+    overdue > 0 ? `Today — ${todayCount} due, ${overdue} overdue` : `Today — ${todayCount} due`,
+  );
   let didLoadSavedFilters = false;
 
   $effect(() => {
@@ -90,15 +105,16 @@
   <nav class="nav">
     <button
       class="nav-item"
-      title="Today"
-      aria-label="Today"
+      title={todayTitle}
+      aria-label={todayTitle}
       class:active={nodeStore.viewMode === 'today' && uiStore.activeModule === 'today'}
       onclick={() => openView('today', 'today')}
     >
       <span class="icon">◎</span>
       <span>Today</span>
-      {#if todayCount > 0}<span class="badge">{todayCount}</span>{/if}
-      {#if overdue > 0}<span class="badge danger">{overdue}</span>{/if}
+      {#if todayCount > 0}
+        <span class="badge" class:danger={overdue > 0}>{badgeLabel(todayCount)}</span>
+      {/if}
     </button>
     <button
       class="nav-item"
@@ -109,7 +125,7 @@
     >
       <span class="icon">↓</span>
       <span>Inbox</span>
-      {#if inboxCount > 0}<span class="badge">{inboxCount}</span>{/if}
+      {#if inboxCount > 0}<span class="badge">{badgeLabel(inboxCount)}</span>{/if}
     </button>
     <button
       class="nav-item"
@@ -120,7 +136,7 @@
     >
       <span class="icon">7</span>
       <span>Next 7 Days</span>
-      {#if upcomingCount > 0}<span class="badge">{upcomingCount}</span>{/if}
+      {#if upcomingCount > 0}<span class="badge">{badgeLabel(upcomingCount)}</span>{/if}
     </button>
     <button
       class="nav-item"
@@ -136,7 +152,7 @@
     >
       <span class="icon">✓</span>
       <span>Completed</span>
-      {#if completedCount > 0}<span class="badge">{completedCount}</span>{/if}
+      {#if completedCount > 0}<span class="badge">{badgeLabel(completedCount)}</span>{/if}
     </button>
     <button
       class="nav-item"
@@ -153,7 +169,7 @@
     >
       <span class="icon">⌫</span>
       <span>Trash</span>
-      {#if trashCount > 0}<span class="badge">{trashCount}</span>{/if}
+      {#if trashCount > 0}<span class="badge">{badgeLabel(trashCount)}</span>{/if}
     </button>
     <button
       class="nav-item"
@@ -199,7 +215,7 @@
     >
       <span class="icon">★</span>
       <span>Favorites</span>
-      {#if favorites.length > 0}<span class="badge">{favorites.length}</span>{/if}
+      {#if favorites.length > 0}<span class="badge">{badgeLabel(favorites.length)}</span>{/if}
     </button>
   </nav>
 
@@ -428,16 +444,24 @@
     text-align: center;
     opacity: 0.7;
   }
+  /* Sits in the button's top-right corner as a small chip. Bounded width and a
+     solid background so a large count reads as an overlay rather than smearing
+     into the icon underneath it. */
   .badge {
     position: absolute;
-    right: 2px;
-    top: 2px;
+    right: 0;
+    top: 0;
     margin-left: 0;
-    font-size: 10px;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
     background: var(--bg-active);
-    padding: 1px 6px;
+    padding: 0 4px;
     border-radius: 8px;
     color: var(--text-secondary);
+    pointer-events: none;
   }
   .badge.danger {
     background: rgba(239, 68, 68, 0.15);

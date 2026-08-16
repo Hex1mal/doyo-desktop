@@ -9,19 +9,45 @@
     viewMode?: 'tree' | 'today' | 'inbox' | 'upcoming' | 'search';
   };
 
-  const topItems: RailItem[] = [
-    { id: 'today', label: 'Today', icon: '◎', viewMode: 'today' },
-    { id: 'inbox', label: 'Inbox', icon: '□', viewMode: 'inbox' },
-    { id: 'upcoming', label: 'Upcoming', icon: '7', viewMode: 'upcoming' },
-    { id: 'workspaces', label: 'Workspaces', icon: 'W', viewMode: 'tree' },
-    { id: 'calendar', label: 'Calendar', icon: 'C' },
-    { id: 'kanban', label: 'Kanban', icon: 'K' },
-    { id: 'timeline', label: 'Timeline', icon: 'T' },
-    { id: 'productivity', label: 'Productivity Methods', icon: 'P' },
-    { id: 'habits', label: 'Habits', icon: 'H' },
-    { id: 'countdowns', label: 'Countdowns', icon: 'D' },
-    { id: 'statistics', label: 'Statistics', icon: 'S' },
-    { id: 'search', label: 'Search', icon: '⌕', viewMode: 'search' },
+  // Grouped rather than one flat run of twelve. The rail is icon-only, so
+  // proximity is the only structure available to say which destinations belong
+  // together; without it every module reads as equally likely.
+  const topGroups: { name: string; items: RailItem[] }[] = [
+    {
+      name: 'Focus for today',
+      items: [
+        { id: 'today', label: 'Today', icon: '◎', viewMode: 'today' },
+        { id: 'inbox', label: 'Inbox', icon: '□', viewMode: 'inbox' },
+        { id: 'upcoming', label: 'Upcoming', icon: '7', viewMode: 'upcoming' },
+      ],
+    },
+    {
+      name: 'Organize',
+      items: [{ id: 'workspaces', label: 'Workspaces', icon: 'W', viewMode: 'tree' }],
+    },
+    {
+      name: 'Plan',
+      items: [
+        { id: 'calendar', label: 'Calendar', icon: 'C' },
+        { id: 'kanban', label: 'Kanban', icon: 'K' },
+        { id: 'timeline', label: 'Timeline', icon: 'T' },
+      ],
+    },
+    {
+      name: 'Practice',
+      items: [
+        { id: 'productivity', label: 'Productivity Methods', icon: 'P' },
+        { id: 'habits', label: 'Habits', icon: 'H' },
+        { id: 'countdowns', label: 'Countdowns', icon: 'D' },
+      ],
+    },
+    {
+      name: 'Review',
+      items: [
+        { id: 'statistics', label: 'Statistics', icon: 'S' },
+        { id: 'search', label: 'Search', icon: '⌕', viewMode: 'search' },
+      ],
+    },
   ];
 
   const bottomItems: RailItem[] = [{ id: 'settings', label: 'Settings', icon: '⚙' }];
@@ -39,18 +65,22 @@
 </script>
 
 <nav class="rail" aria-label="Primary modules">
-  <div class="rail-group">
-    {#each topItems as item}
-      <button
-        class="rail-button"
-        class:active={uiStore.activeModule === item.id}
-        title={item.label}
-        aria-label={item.label}
-        aria-current={uiStore.activeModule === item.id ? 'page' : undefined}
-        onclick={() => activate(item)}
-      >
-        <span>{item.icon}</span>
-      </button>
+  <div class="rail-top">
+    {#each topGroups as group (group.name)}
+      <div class="rail-group" role="group" aria-label={group.name}>
+        {#each group.items as item (item.id)}
+          <button
+            class="rail-button"
+            class:active={uiStore.activeModule === item.id}
+            title={item.label}
+            aria-label={item.label}
+            aria-current={uiStore.activeModule === item.id ? 'page' : undefined}
+            onclick={() => activate(item)}
+          >
+            <span>{item.icon}</span>
+          </button>
+        {/each}
+      </div>
     {/each}
   </div>
 
@@ -84,11 +114,32 @@
     overflow: hidden;
   }
 
+  .rail-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .rail-top::-webkit-scrollbar {
+    display: none;
+  }
+
   .rail-group {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
+  }
+
+  /* Whitespace carries the grouping; a rule is only needed where the gap alone
+     could read as an accident. */
+  .rail-top .rail-group + .rail-group {
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    width: 24px;
   }
 
   .rail-button {

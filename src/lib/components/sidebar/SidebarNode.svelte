@@ -57,11 +57,11 @@
     return '•';
   }
 
-  function childNoun(nodeType: string) {
-    if (nodeType === 'Workspace') return 'groups';
-    if (nodeType === 'Group') return 'items';
-    if (nodeType === 'Task') return 'subtasks';
-    return 'items';
+  function childNoun(nodeType: string, count: number) {
+    const plural = count === 1 ? '' : 's';
+    if (nodeType === 'Workspace') return `group${plural}`;
+    if (nodeType === 'Task') return `subtask${plural}`;
+    return `item${plural}`;
   }
 
   function openNode() {
@@ -262,7 +262,7 @@
       >
       <span class="label">{node.title || 'Untitled'}</span>
       {#if children.length > 0}
-        <span class="count">{children.length} {childNoun(node.nodeType)}</span>
+        <span class="count">{children.length} {childNoun(node.nodeType, children.length)}</span>
       {/if}
     </button>
   </div>

@@ -25,6 +25,9 @@ import type {
   UpsertHabitLogInput,
   StopFocusInput,
   ReminderConfig,
+  StartupReport,
+  RecoveryCandidate,
+  RestoreOutcome,
 } from '$lib/types/node';
 
 type RawRecord = Record<string, unknown>;
@@ -307,6 +310,25 @@ export async function nodeUpdate(id: string, changes: UpdateNodeInput): Promise<
   return normalizeNode(
     await invoke('node_update', { id, changes: denormalizeUpdateNodeInput(normalizedChanges) }),
   );
+}
+
+/**
+ * Change only the named property keys, merged against the stored value.
+ *
+ * Preferred over `nodeReplaceProperties` for single-field edits: the caller
+ * sends what it is changing, so a stale copy of the node cannot travel with the
+ * request and overwrite a key another view updated. `null` clears a key, and
+ * `custom` merges by sub-key.
+ */
+export async function nodePatchProperties(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<Node> {
+  const raw = await invoke('node_patch_properties', {
+    id,
+    patch: denormalizeProperties(patch as Partial<Node['properties']>),
+  });
+  return normalizeNode(raw);
 }
 
 export async function nodeReplaceProperties(
@@ -650,6 +672,21 @@ export async function backupList(): Promise<string[]> {
   return invoke('backup_list');
 }
 
-export async function backupRestore(backupName: string): Promise<void> {
-  return invoke('backup_restore', { backupName });
+export async function backupRestore(backupName: string): Promise<RestoreOutcome> {
+  return invoke<RestoreOutcome>('backup_restore', { backupName });
+}
+
+export async function startupReport(): Promise<StartupReport> {
+  return invoke<StartupReport>('startup_report');
+}
+
+export async function recoveryCandidates(): Promise<RecoveryCandidate[]> {
+  return invoke<RecoveryCandidate[]>('recovery_candidates');
+}
+
+export async function recoveryRestore(
+  name: string,
+  source: RecoveryCandidate['source'],
+): Promise<RestoreOutcome> {
+  return invoke<RestoreOutcome>('recovery_restore', { name, source });
 }

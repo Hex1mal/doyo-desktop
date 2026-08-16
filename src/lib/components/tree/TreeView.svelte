@@ -123,11 +123,6 @@
     return nodeStore.getKindLabel(activeRoot);
   }
 
-  function createActionTitle() {
-    if (!contextNode) return 'Create a workspace from the sidebar or empty state';
-    return 'Right-click or press Shift+F10 for contextual actions';
-  }
-
   function pathTitle(path: Array<{ title: string }>) {
     return path.map((node) => node.title || 'Untitled').join(' › ');
   }
@@ -773,12 +768,15 @@
       </div>
     </div>
   {:else}
-    <div class="scope-header">
-      <div class="scope-title">
-        <span class="scope-type">{contextType()}</span>
-        <strong>{contextTitle()}</strong>
-      </div>
-      {#if activeRoot}
+    <!-- Only shown while scoped to one workspace, where it says which one and
+         offers the way out. Unscoped it repeated the breadcrumb directly above
+         it, costing a band of vertical space to say the same thing twice. -->
+    {#if activeRoot}
+      <div class="scope-header">
+        <div class="scope-title">
+          <span class="scope-type">{contextType()}</span>
+          <strong>{contextTitle()}</strong>
+        </div>
         <button
           class="scope-clear"
           onclick={() => {
@@ -788,21 +786,16 @@
         >
           Show all
         </button>
-      {/if}
-    </div>
+      </div>
+    {/if}
 
     <!-- TOOLBAR -->
     <div class="toolbar">
-      <div class="toolbar-context">
-        <span>{createActionTitle()}</span>
-      </div>
       <div class="toolbar-left">
         {#if !contextNode}
           <button class="tb-btn primary" onclick={() => nodeStore.createWorkspace('My Workspace')}>
             + Workspace
           </button>
-        {:else}
-          <span class="toolbar-hint">Context menu: right-click or Shift+F10</span>
         {/if}
       </div>
 
@@ -1137,22 +1130,11 @@
     gap: 12px;
     flex-wrap: wrap;
   }
-  .toolbar-context {
-    flex-basis: 100%;
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
-    font-weight: 700;
-    text-transform: uppercase;
-  }
   .toolbar-left,
   .toolbar-right {
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .toolbar-hint {
-    color: var(--text-tertiary);
-    font-size: var(--text-xs);
   }
   .tb-btn {
     border: 1px solid var(--border);
@@ -1290,24 +1272,9 @@
     box-shadow: 0 0 0 3px var(--accent-subtle);
   }
 
-  /* EMPTY STATE */
-  .empty-state {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--text-secondary);
-  }
-  .empty-state.small {
-    padding: 32px;
-  }
-  .empty-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-  }
+  /* EMPTY STATE — see app.css. Styled globally because these classes are used
+     by every view, and Svelte's scoping meant only this component's empty
+     states were ever centred. */
   h2 {
     color: var(--text-primary);
     margin-bottom: 8px;

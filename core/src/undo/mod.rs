@@ -73,6 +73,13 @@ impl UndoStack {
         self.redo_stack.pop()
     }
 
+    /// Drop all history. Used when the underlying database is swapped out, since
+    /// the snapshots on the stack describe rows that no longer exist.
+    pub fn clear(&mut self) {
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo_stack.is_empty()
     }

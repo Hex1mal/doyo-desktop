@@ -79,7 +79,6 @@
   <div class="view-header">
     <div>
       <h2>Statistics</h2>
-      <p>Real persisted task, focus, and habit data. Each task record is counted once.</p>
     </div>
     <select bind:value={range} aria-label="Range" onchange={() => (now = new Date())}>
       <option value="day">Day</option>
@@ -267,7 +266,6 @@
     background: var(--accent);
     color: white;
   }
-  .view-header p,
   article span,
   .muted {
     color: var(--text-tertiary);

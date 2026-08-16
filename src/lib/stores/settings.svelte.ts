@@ -8,6 +8,7 @@ import {
   settingsSet,
 } from '$lib/api/client';
 import { toast } from '$lib/stores/toast.svelte';
+import { applyRestoreOutcome } from '$lib/stores/restore';
 
 export type SettingsPanel =
   | 'general'
@@ -107,7 +108,11 @@ export const settingsStore = {
   },
 
   async restoreBackup(name: string) {
-    if (!window.confirm('Restore this backup? The app should be restarted after restore.'))
+    if (
+      !window.confirm(
+        'Restore this backup?\n\nYour current data is snapshotted first, so this can be undone.',
+      )
+    )
       return false;
     try {
       const prefs = await this.get('backup.preferences.v1', {
@@ -116,9 +121,11 @@ export const settingsStore = {
       if (prefs.createSafetyBackupBeforeRestore) {
         await backupCreate();
       }
-      await backupRestore(name);
+      // The backend always snapshots the live database first and returns that
+      // snapshot's name, so a restore stays reversible even with the preference off.
+      const outcome = await backupRestore(name);
       state.backups = await backupList();
-      toast.info('Backup restored. Restart the app to reload the restored database.');
+      await applyRestoreOutcome(outcome);
       return true;
     } catch (e) {
       toast.error(`Restore failed: ${String(e)}`);

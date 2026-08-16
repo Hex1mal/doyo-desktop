@@ -160,50 +160,13 @@ impl NodeRepository {
             )?;
         }
         if let Some(ref props) = changes.properties {
-            // Merge partial properties with existing (never wipe unspecified fields)
-            let existing_str: String = conn.query_row(
-                "SELECT properties FROM nodes WHERE id = ?1",
-                params![id],
-                |row| row.get(0),
-            )?;
-            let mut existing: NodeProperties =
-                serde_json::from_str(&existing_str).unwrap_or_default();
-            // Field-level merge (full structs from set_due_date/set_priority already merged)
-            if props.due_date.is_some() {
-                existing.due_date = props.due_date;
-            }
-            if props.start_date.is_some() {
-                existing.start_date = props.start_date;
-            }
-            if props.priority.is_some() {
-                existing.priority = props.priority;
-            }
-            if props.reminders.is_some() {
-                existing.reminders = props.reminders.clone();
-            }
-            if props.recurrence.is_some() {
-                existing.recurrence = props.recurrence.clone();
-            }
-            if props.estimated_duration_minutes.is_some() {
-                existing.estimated_duration_minutes = props.estimated_duration_minutes;
-            }
-            if props.custom.is_some() {
-                existing.custom = props.custom.clone();
-            }
-            if props.icon.is_some() {
-                existing.icon = props.icon.clone();
-            }
-            if props.color.is_some() {
-                existing.color = props.color.clone();
-            }
-            if props.pinned.is_some() {
-                existing.pinned = props.pinned;
-            }
-            if props.favorite.is_some() {
-                existing.favorite = props.favorite;
-            }
-
-            let props_str = serde_json::to_string(&existing)?;
+            // Merge at the JSON layer, not through NodeProperties. Round-tripping
+            // through the struct silently drops every key it does not declare, so
+            // an unrelated single-field edit could erase metadata written by
+            // another view or a newer build. Unset fields skip serialization, so
+            // the patch contains exactly the keys the caller intended to change.
+            let patch = serde_json::to_value(props)?;
+            let props_str = merged_properties_json(&conn, id, &patch)?;
             conn.execute(
                 "UPDATE nodes SET properties = ?1, updated_at = ?2, version = ?3 WHERE id = ?4",
                 params![&props_str, &now, version, id],
@@ -226,10 +189,50 @@ impl NodeRepository {
         Ok(node)
     }
 
+    /// Atomically change specific property keys, leaving every other key intact.
+    ///
+    /// This is the safe primitive for single-field intents such as "set the due
+    /// date": the caller states only what changed, so no read-modify-write of the
+    /// whole blob can drop metadata it did not know about. A `null` value clears
+    /// the key.
+    pub fn patch_properties(&self, id: &str, patch: &serde_json::Value) -> Result<Node> {
+        let conn = self.db.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        let props_str = merged_properties_json(&conn, id, patch)?;
+        conn.execute(
+            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
+            params![&props_str, &now, id],
+        )?;
+        conn.query_row("SELECT * FROM nodes WHERE id = ?1", params![id], |row| {
+            Ok(map_node(row))
+        })
+        .map_err(|_| Error::NotFound(format!("Node not found: {}", id)))
+    }
+
+    /// Replace the properties this build models, leaving any others intact.
+    ///
+    /// Callers use this to clear fields, which a merge cannot express: a key
+    /// missing from `properties` means "remove it". That authority stops at the
+    /// keys `NodeProperties` can describe. The frontend builds its replacement
+    /// from a normalized node that only ever contains the modelled keys, so a
+    /// plain whole-blob write let an ordinary edit — picking a node colour, say —
+    /// silently delete metadata written by a newer build.
     pub fn replace_properties(&self, id: &str, properties: &NodeProperties) -> Result<Node> {
         let conn = self.db.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
-        let props_str = serde_json::to_string(properties)?;
+
+        let mut merged = read_properties_object(&conn, id)?;
+        // Clear the caller's surface first so omitted keys are genuinely removed.
+        for key in KNOWN_PROPERTY_KEYS {
+            merged.remove(key);
+        }
+        if let serde_json::Value::Object(replacement) = serde_json::to_value(properties)? {
+            for (key, value) in replacement {
+                merged.insert(key, value);
+            }
+        }
+        let props_str = serde_json::to_string(&serde_json::Value::Object(merged))?;
+
         conn.execute(
             "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
             params![&props_str, &now, id],
@@ -694,16 +697,24 @@ impl NodeRepository {
         match root_id {
             Some(id) => self.get_descendants(id, None),
             None => {
+                // Every live node, flat. This used to walk down from the roots
+                // with a recursive CTE, but for the whole tree that walk is pure
+                // cost: soft delete cascades to descendants and hard delete
+                // cascades by foreign key, so no live node can have a dead
+                // ancestor and "reachable from a root" is exactly "not deleted".
+                //
+                // The cost was not small. SQLite planned the recursive step as a
+                // search on `idx_nodes_deleted_at` — which matches nearly every
+                // row — followed by a full scan of the working table, making the
+                // walk quadratic: 100 ms at 1k nodes, 11 s at 10k, 5 minutes at
+                // 50k, on the query the app loads its entire tree from. Flat, the
+                // same rows come back in 20 ms at 10k.
+                //
+                // Callers sort children by position themselves, so the ordering
+                // here only needs to be stable.
                 let conn = self.db.conn.lock().unwrap();
                 let mut stmt = conn.prepare(
-                    "WITH RECURSIVE full_tree AS (
-                        SELECT *, 0 AS depth FROM nodes WHERE parent_id IS NULL AND deleted_at IS NULL
-                        UNION ALL
-                        SELECT n.*, ft.depth + 1
-                        FROM nodes n JOIN full_tree ft ON n.parent_id = ft.id
-                        WHERE n.deleted_at IS NULL
-                    )
-                    SELECT * FROM full_tree ORDER BY depth, position"
+                    "SELECT * FROM nodes WHERE deleted_at IS NULL ORDER BY position, created_at",
                 )?;
                 let nodes = stmt
                     .query_map([], |row| Ok(map_node(row)))?
@@ -886,6 +897,70 @@ impl NodeRepository {
 
         Ok(node)
     }
+}
+
+/// Read a node's stored properties as a raw JSON object.
+///
+/// Parsed as `Value`, never as `NodeProperties`: keys this build does not know
+/// about must survive a read/write cycle instead of being silently discarded.
+pub(crate) fn read_properties_object(
+    conn: &rusqlite::Connection,
+    id: &str,
+) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let raw: String = conn.query_row(
+        "SELECT properties FROM nodes WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )?;
+    Ok(match serde_json::from_str::<serde_json::Value>(&raw) {
+        Ok(serde_json::Value::Object(map)) => map,
+        _ => serde_json::Map::new(),
+    })
+}
+
+/// Apply `patch` over a node's stored properties and return the merged JSON.
+///
+/// A `null` in the patch removes that key, which is how a property is cleared;
+/// every other existing key is left untouched.
+pub(crate) fn merged_properties_json(
+    conn: &rusqlite::Connection,
+    id: &str,
+    patch: &serde_json::Value,
+) -> Result<String> {
+    let mut existing = read_properties_object(conn, id)?;
+    if let serde_json::Value::Object(patch) = patch {
+        for (key, value) in patch {
+            if value.is_null() {
+                existing.remove(key);
+                continue;
+            }
+            // `custom` is the extension bag every productivity view writes into -
+            // GTD state, Eisenhower quadrant, Kanban status, Pareto scores. Those
+            // views each own a few keys and know nothing about the others, so a
+            // patch touching one key must not carry away the rest. Merging by
+            // sub-key against the stored value means a caller never has to send
+            // (and therefore never has to hold a fresh copy of) keys it does not
+            // care about.
+            if key == "custom" {
+                if let (Some(serde_json::Value::Object(current)), serde_json::Value::Object(next)) =
+                    (existing.get(key), value)
+                {
+                    let mut merged = current.clone();
+                    for (sub_key, sub_value) in next {
+                        if sub_value.is_null() {
+                            merged.remove(sub_key);
+                        } else {
+                            merged.insert(sub_key.clone(), sub_value.clone());
+                        }
+                    }
+                    existing.insert(key.clone(), serde_json::Value::Object(merged));
+                    continue;
+                }
+            }
+            existing.insert(key.clone(), value.clone());
+        }
+    }
+    Ok(serde_json::to_string(&serde_json::Value::Object(existing))?)
 }
 
 pub(crate) fn map_node(row: &rusqlite::Row) -> Node {

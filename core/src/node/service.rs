@@ -109,6 +109,27 @@ impl NodeService {
         Ok(node)
     }
 
+    /// Change only the property keys named in `patch`, against the stored value.
+    ///
+    /// This is the safe way to express a single-field intent from the UI. The
+    /// caller sends what it wants changed rather than a whole snapshot, so no
+    /// stale copy of the node can travel with the request and overwrite a key
+    /// some other view updated in the meantime. A `null` clears a key, and
+    /// `custom` merges by sub-key.
+    pub fn patch_properties(&mut self, id: &str, patch: serde_json::Value) -> Result<Node> {
+        let before = self.repo.get(id)?;
+        if !patch.is_object() {
+            return Err(Error::Validation("Property patch must be an object".into()));
+        }
+        let node = self.repo.patch_properties(id, &patch)?;
+        // Validate the result rather than the patch: only the merged value is
+        // guaranteed to be a complete, coherent set of properties.
+        handler::get_handler(&before.node_type).validate_properties(&node.properties)?;
+        self.activity_repo.log(id, "updated", &patch)?;
+        self.undo_stack.push_update(id.to_string(), before);
+        Ok(node)
+    }
+
     pub fn replace_properties(&mut self, id: &str, properties: NodeProperties) -> Result<Node> {
         let before = self.repo.get(id)?;
         handler::get_handler(&before.node_type).validate_properties(&properties)?;
@@ -297,23 +318,13 @@ impl NodeService {
         id: &str,
         due_date: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Node> {
-        let mut node = self.repo.get(id)?;
-        node.properties.due_date = due_date;
-        let props_str = serde_json::to_string(&node.properties)?;
-        let conn = self.repo.db.conn.lock().unwrap();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
-            rusqlite::params![&props_str, &now, id],
-        )?;
-        let node = conn
-            .query_row(
-                "SELECT * FROM nodes WHERE id = ?1",
-                rusqlite::params![id],
-                |row| Ok(super::repository::map_node(row)),
-            )
-            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
-        drop(conn);
+        self.repo.get(id)?;
+        // Patch only due_date; a full-blob rewrite here would drop any property
+        // key this build does not model.
+        let patch = serde_json::json!({
+            "due_date": due_date.map(|d| d.to_rfc3339()),
+        });
+        let node = self.repo.patch_properties(id, &patch)?;
         self.activity_repo.log(
             id,
             "updated",
@@ -326,23 +337,10 @@ impl NodeService {
         if Priority::from_i32(priority).is_none() {
             return Err(Error::Validation(format!("Invalid priority: {}", priority)));
         }
-        let mut node = self.repo.get(id)?;
-        node.properties.priority = Some(priority);
-        let props_str = serde_json::to_string(&node.properties)?;
-        let conn = self.repo.db.conn.lock().unwrap();
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE nodes SET properties = ?1, updated_at = ?2, version = version + 1 WHERE id = ?3",
-            rusqlite::params![&props_str, &now, id],
-        )?;
-        let node = conn
-            .query_row(
-                "SELECT * FROM nodes WHERE id = ?1",
-                rusqlite::params![id],
-                |row| Ok(super::repository::map_node(row)),
-            )
-            .map_err(|_| crate::error::Error::NotFound(format!("Node not found: {}", id)))?;
-        drop(conn);
+        self.repo.get(id)?;
+        let node = self
+            .repo
+            .patch_properties(id, &serde_json::json!({ "priority": priority }))?;
         self.activity_repo
             .log(id, "updated", &serde_json::json!({"priority": priority}))?;
         Ok(node)
@@ -540,6 +538,15 @@ impl NodeService {
         }
 
         Ok(description)
+    }
+
+    /// Forget undo/redo history.
+    ///
+    /// Must be called whenever the database behind this service is replaced: the
+    /// stacks hold node snapshots from the previous database, and replaying them
+    /// against a restored one would resurrect or overwrite unrelated rows.
+    pub fn reset_history(&mut self) {
+        self.undo_stack.clear();
     }
 
     pub fn can_undo(&self) -> bool {

@@ -57,6 +57,28 @@ impl Priority {
     }
 }
 
+/// Every property key `NodeProperties` can serialize.
+///
+/// A caller holding a `NodeProperties` can only describe these keys, so a
+/// "replace" from such a caller may only overwrite these keys — anything else in
+/// the stored blob was written by something this build does not model and is not
+/// the caller's to discard. `NodeRepository::replace_properties` uses this list
+/// to draw that line, and `test_known_property_keys_match_the_struct` fails if a
+/// field is added to the struct without being listed here.
+pub const KNOWN_PROPERTY_KEYS: [&str; 11] = [
+    "due_date",
+    "start_date",
+    "priority",
+    "reminders",
+    "recurrence",
+    "estimated_duration_minutes",
+    "custom",
+    "icon",
+    "color",
+    "pinned",
+    "favorite",
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NodeProperties {
     #[serde(skip_serializing_if = "Option::is_none")]

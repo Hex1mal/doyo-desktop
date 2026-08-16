@@ -15,8 +15,27 @@
   import { handleGlobalKeydown } from '$lib/keyboard/handler';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { reminderStore } from '$lib/stores/reminders.svelte';
+  import StartupRecovery from '$lib/components/layout/StartupRecovery.svelte';
+  import { startupStore } from '$lib/stores/startup.svelte';
 
   let didBootstrap = false;
+
+  /// Modules that render their own page heading. Showing the breadcrumb above
+  /// them printed the same page name twice, one band under the other.
+  const SELF_TITLED_MODULES = new Set([
+    'calendar',
+    'kanban',
+    'timeline',
+    'productivity',
+    'habits',
+    'countdowns',
+    'statistics',
+    'settings',
+  ]);
+
+  // The breadcrumb earns its row in the tree and smart views, where it shows a
+  // real ancestor path rather than a label repeated from below.
+  const showBreadcrumb = $derived(!SELF_TITLED_MODULES.has(uiStore.activeModule));
 
   $effect(() => {
     if (didBootstrap) return;
@@ -25,6 +44,9 @@
     const loadWithRetry = async (attempt = 0) => {
       if (attempt === 0) {
         await uiStore.loadPersistedSettings();
+        // Surfaced before anything else: if the database could not be opened,
+        // the user needs to know before they start typing into an empty one.
+        await startupStore.load();
       }
       const loaded = await nodeStore.load();
       reminderStore.start();
@@ -88,9 +110,11 @@
     {/if}
 
     <main class="main-area">
-      <header class="main-header">
-        <Breadcrumb />
-      </header>
+      {#if showBreadcrumb}
+        <header class="main-header">
+          <Breadcrumb />
+        </header>
+      {/if}
       <div class="main-content">
         <TreeView />
       </div>
@@ -129,6 +153,7 @@
   <DueDatePrompt />
 {/if}
 <ToastHost />
+<StartupRecovery />
 {#if uiStore.zoomFeedback}
   <div class="zoom-feedback" role="status">{uiStore.zoomFeedback}</div>
 {/if}

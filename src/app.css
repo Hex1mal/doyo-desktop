@@ -177,3 +177,56 @@ textarea {
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
+
+/* Respect the OS "reduce motion" setting. Doyo uses very little motion, but the
+   few transitions it does use should not run for users who have opted out. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Empty states.
+   Every view uses these classes, so they live here rather than inside one
+   component - scoped copies meant most screens rendered their empty state as
+   bare unaligned text. An empty screen should say what belongs here and what to
+   do next, so the shape is: title, one line of purpose, one hint. */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+}
+.empty-state.small {
+  padding: 32px 24px;
+}
+.empty-state p {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.empty-state .empty-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.empty-state .empty-hint {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 4px;
+  opacity: 0.7;
+}

@@ -1,6 +1,6 @@
 import {
+  nodePatchProperties,
   nodeSetDueDate,
-  nodeUpdate,
   timeBlockCreate,
   timeBlockDelete,
   timeBlockList,
@@ -29,14 +29,6 @@ const state = $state({
   error: null as string | null,
   dragPayload: null as CalendarDragPayload | null,
 });
-
-function mergedCustom(node: Node, patch: Record<string, unknown>) {
-  const existing =
-    node.properties.custom && typeof node.properties.custom === 'object'
-      ? node.properties.custom
-      : {};
-  return { ...existing, ...patch };
-}
 
 export const calendarStore = {
   get blocks() {
@@ -79,9 +71,9 @@ export const calendarStore = {
     const before = node;
     const moved = moveTaskDate(node, day);
     try {
-      const updated = await nodeUpdate(node.id, {
-        properties: { custom: mergedCustom(node, moved.custom) },
-      });
+      // Names only the calendar's own key. Dragging a task must not carry this
+      // view's copy of the task's GTD, matrix or kanban metadata back to disk.
+      const updated = await nodePatchProperties(node.id, { custom: moved.custom });
       nodeStore.upsert(await nodeSetDueDate(updated.id, moved.dueDate));
     } catch (e) {
       nodeStore.upsert(before);
@@ -93,11 +85,9 @@ export const calendarStore = {
     const before = node;
     const moved = moveTaskDate(node, day, hour, minute);
     try {
-      const updated = await nodeUpdate(node.id, {
-        properties: {
-          estimatedDurationMinutes: node.properties.estimatedDurationMinutes ?? 60,
-          custom: mergedCustom(node, moved.custom),
-        },
+      const updated = await nodePatchProperties(node.id, {
+        estimatedDurationMinutes: node.properties.estimatedDurationMinutes ?? 60,
+        custom: moved.custom,
       });
       nodeStore.upsert(await nodeSetDueDate(updated.id, moved.dueDate));
     } catch (e) {
