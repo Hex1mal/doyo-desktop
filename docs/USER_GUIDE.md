@@ -61,6 +61,19 @@ Open Schedule from a task row or the inspector to set date, time, reminder, repe
 
 Today's date is shown with a visible ring and label in Calendar views and in the scheduling date picker. The selected date and today remain visually distinct.
 
+## Keyboard Shortcuts
+
+- `Ctrl+K`: Command palette
+- `Ctrl+P`: Quick open
+- `Ctrl++` or `Ctrl+=`: Zoom in
+- `Ctrl+-`: Zoom out
+- `Ctrl+0`: Reset zoom
+- `Enter`: Create or confirm where supported
+- `Space`: Select focused node
+- `Shift+F10` or Menu key: Open the context menu for the selected row
+
+Desktop shortcuts, such as `Super+T`, are configured through the operating system.
+
 ## Zoom
 
 Use `Ctrl++` or `Ctrl+=` to zoom in, `Ctrl+-` to zoom out, and `Ctrl+0` to reset. The same controls are available in Settings -> Appearance. Zoom applies to the complete application interface and persists after restart.
@@ -80,7 +93,7 @@ Set the policy in Settings or the inspector controls where available.
 Open Settings -> Data and Backup.
 
 - **Create Backup** writes a local SQLite backup.
-- **Restore Backup** replaces the current database with the selected backup and should be followed by an app restart.
+- **Restore Backup** validates the selected file first, snapshots the current database to `doyo-pre-restore-*.db`, and reports that filename so the restore can be rolled back. The restored database is loaded immediately; no manual restart is needed.
 - Safety backup before restore can be enabled in Settings.
 
 ## Import And Export

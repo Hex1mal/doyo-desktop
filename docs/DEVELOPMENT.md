@@ -32,6 +32,12 @@ npm run tauri build
 
 Use additive migrations only. Register new migrations in `core/src/db/migrations.rs` and add integration tests for data compatibility.
 
+## Roadmap
+
+- Packaging polish and signed release artifacts
+- Optional importers and exporters for common task formats
+- Accessibility and keyboard workflow refinements
+
 ## Public Repository Hygiene
 
 Do not commit:
