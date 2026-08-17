@@ -53,6 +53,8 @@ temp/
 *.swp
 *.swo
 screenshots/
+# Published documentation screenshots are tracked on purpose.
+!docs/assets/screenshots/
 test-results/
 playwright-report/
 coverage/

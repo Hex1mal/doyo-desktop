@@ -1,6 +1,25 @@
 # Installation
 
-## System Dependencies
+## Install The Published Release
+
+This is the path for normal use. No build tools are required.
+
+1. Download `Doyo_1.0.0_amd64.deb` from the [latest release](https://github.com/Hex1mal/doyo-desktop/releases/latest).
+2. Install it from the directory you downloaded it into:
+
+   ```bash
+   sudo apt install ./Doyo_1.0.0_amd64.deb
+   ```
+
+To verify the download first, fetch `SHA256SUMS` from the same release and run `sha256sum -c SHA256SUMS` next to the package.
+
+Doyo publishes a Debian/Ubuntu `.deb` for Linux on x86-64 only.
+
+## Build From Source
+
+The sections below are for developers building the repository locally.
+
+### System Dependencies
 
 On Debian-based Linux distributions:
 
@@ -18,7 +37,7 @@ sudo apt install -y \
 
 Install Node.js 22 and Rust using your preferred package manager or official installers.
 
-## Build A Package
+### Build A Package
 
 ```bash
 npm ci
@@ -34,7 +53,7 @@ target/release/bundle/
 Doyo is a Cargo workspace, so build output goes to `target/` at the repository
 root rather than inside `src-tauri/`.
 
-## Install The Debian Package
+### Install The Package You Built
 
 ```bash
 sudo apt install ./target/release/bundle/deb/*.deb
