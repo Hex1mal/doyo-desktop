@@ -38,6 +38,12 @@ Use additive migrations only. Register new migrations in `core/src/db/migrations
 - Optional importers and exporters for common task formats
 - Accessibility and keyboard workflow refinements
 
+## Android
+
+An Android port is under evaluation. `docs/ANDROID.md` records the compatibility
+audit, the toolchain prerequisites, and what is not supported yet. No Android
+target has been generated, and the public README does not advertise Android.
+
 ## Secret Scanning
 
 CI runs `gitleaks/gitleaks-action@v2`, which executes `gitleaks detect` over the
