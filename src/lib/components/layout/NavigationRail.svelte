@@ -52,6 +52,35 @@
 
   const bottomItems: RailItem[] = [{ id: 'settings', label: 'Settings', icon: '⚙' }];
 
+  // The rail scrolls when the window is short or the app is zoomed in. Its
+  // scrollbar is hidden to keep the 52px column clean, so without this the only
+  // hint that more modules exist is a cut-off icon edge. Fade the ends that have
+  // content beyond them, and only those ends.
+  let railTopEl: HTMLElement | undefined = $state();
+  let hasContentAbove = $state(false);
+  let hasContentBelow = $state(false);
+
+  function measureOverflow() {
+    const el = railTopEl;
+    if (!el) return;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    // Sub-pixel layout leaves a fraction of a pixel of "scroll" on rails that
+    // fit; 1px of slack keeps the fade off in that case.
+    hasContentAbove = maxScroll > 1 && el.scrollTop > 1;
+    hasContentBelow = maxScroll > 1 && el.scrollTop < maxScroll - 1;
+  }
+
+  $effect(() => {
+    const el = railTopEl;
+    if (!el) return;
+    measureOverflow();
+    // Height changes come from window resizes and from zoom, which does not
+    // fire a resize event, so observe the element itself.
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
+
   function activate(item: RailItem) {
     uiStore.setActiveModule(item.id);
     if (item.viewMode) {
@@ -65,7 +94,13 @@
 </script>
 
 <nav class="rail" aria-label="Primary modules">
-  <div class="rail-top">
+  <div
+    class="rail-top"
+    class:fade-top={hasContentAbove}
+    class:fade-bottom={hasContentBelow}
+    bind:this={railTopEl}
+    onscroll={measureOverflow}
+  >
     {#each topGroups as group (group.name)}
       <div class="rail-group" role="group" aria-label={group.name}>
         {#each group.items as item (item.id)}
@@ -127,6 +162,40 @@
     display: none;
   }
 
+  /* Fade the scrollable ends so a clipped icon reads as "there is more here"
+     rather than as a rendering glitch. Applied as a mask so it works over the
+     sidebar background in either theme without hard-coding a colour. */
+  .rail-top.fade-top {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 24px);
+  }
+  .rail-top.fade-bottom {
+    -webkit-mask-image: linear-gradient(to top, transparent 0, #000 24px);
+    mask-image: linear-gradient(to top, transparent 0, #000 24px);
+  }
+  .rail-top.fade-top.fade-bottom {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+  }
+
+  /* Keyboard focus scrolls the button into view; leave room so it does not land
+     flush against a faded edge. */
+  .rail-top .rail-button {
+    scroll-margin: 28px 0;
+  }
+
   .rail-group {
     display: flex;
     flex-direction: column;
@@ -171,5 +240,22 @@
   .rail-button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+
+  /* Twelve modules do not fit a 600px-tall window at the default rhythm. Tighten
+     the spacing before falling back to scrolling: reaching every module without
+     scrolling beats preserving the exact gaps. Grouping is preserved, and the
+     targets stay at 32px. */
+  @media (max-height: 760px) {
+    .rail-top {
+      gap: 8px;
+    }
+    .rail-top .rail-group + .rail-group {
+      padding-top: 8px;
+    }
+    .rail-button {
+      width: 32px;
+      height: 32px;
+    }
   }
 </style>
