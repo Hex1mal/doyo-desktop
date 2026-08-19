@@ -1,16 +1,35 @@
 import { commandPaletteStore } from '$lib/stores/command-palette.svelte';
 import { uiStore } from '$lib/stores/ui.svelte';
 import { nodeStore } from '$lib/stores/nodes.svelte';
+import { overlayStore } from '$lib/stores/overlay.svelte';
 import { zoomActionFromKeyboard } from '$lib/utils/zoom';
 
-function isEditableTarget(target: EventTarget | null): boolean {
+/** Somewhere the user is typing, so plain keys and text editing belong to it. */
+function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
   const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
+  // A select consumes typing, arrows and Space to choose an option.
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+/**
+ * A control that owns Enter and Space itself. Stealing those turns "press the
+ * focused button" into "create a sibling" or "toggle the inspector".
+ */
+function isActivatableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest('button, summary, a[href], [role="button"], [role="menuitem"]'));
 }
 
 export function handleGlobalKeydown(e: KeyboardEvent) {
-  const inInput = isEditableTarget(e.target);
+  // A modal, dialog, menu or popover owns the keyboard while it is open. These
+  // shortcuts are registered on window, so without this they act on the tree
+  // behind whatever the user is actually looking at. Every surface handles its
+  // own keys, Escape included.
+  if (overlayStore.isAnyOpen) return;
+
+  const inInput = isTextEntryTarget(e.target);
   const ctrl = e.ctrlKey || e.metaKey;
 
   // Always allow Escape
@@ -69,12 +88,12 @@ export function handleGlobalKeydown(e: KeyboardEvent) {
       uiStore.openQuickOpen();
       return;
     }
-    if (key === 'n' && !e.shiftKey) {
+    if (key === 'n' && !e.shiftKey && !inInput) {
       e.preventDefault();
       nodeStore.createSibling('');
       return;
     }
-    if (key === 'n' && e.shiftKey) {
+    if (key === 'n' && e.shiftKey && !inInput) {
       e.preventDefault();
       nodeStore.createSibling('').then((n) => {
         if (n) nodeStore.rename(n.id, '').catch(() => {});
@@ -82,12 +101,12 @@ export function handleGlobalKeydown(e: KeyboardEvent) {
       // quick capture = sibling at root if nothing selected
       return;
     }
-    if (key === 'z' && !e.shiftKey) {
+    if (key === 'z' && !e.shiftKey && !inInput) {
       e.preventDefault();
       nodeStore.undo();
       return;
     }
-    if ((key === 'z' && e.shiftKey) || key === 'y') {
+    if (((key === 'z' && e.shiftKey) || key === 'y') && !inInput) {
       e.preventDefault();
       nodeStore.redo();
       return;
@@ -130,6 +149,11 @@ export function handleGlobalKeydown(e: KeyboardEvent) {
 
   // While typing in inputs, don't steal plain keys
   if (inInput) return;
+
+  // A focused button or link owns Enter and Space. Without this, activating a
+  // toolbar button with the keyboard creates a sibling or toggles the
+  // inspector instead of pressing the button.
+  if ((e.key === 'Enter' || e.key === ' ') && isActivatableTarget(e.target)) return;
 
   // Tree navigation / editing keys
   switch (e.key) {

@@ -25,6 +25,7 @@
   import { focusStore } from '$lib/stores/focus.svelte';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
   import { formatDue, isOverdue } from '$lib/utils/date';
 
   let {
@@ -44,6 +45,7 @@
   let editTitle = $state('');
   let inputEl: HTMLInputElement | undefined = $state();
   let showMenu = $state(false);
+
   let menuX = $state(0);
   let menuY = $state(0);
   let dropState = $state<'before' | 'after' | 'inside' | 'invalid' | null>(null);
@@ -53,6 +55,12 @@
     targetParentId: string | null;
     targetIndex?: number;
   } | null>(null);
+
+  // The row's context menu and its move confirmation are both overlay surfaces:
+  // while either is open the global shortcuts must not act on the tree behind.
+  overlayLayer('tree-node-menu', () => showMenu, 'menu');
+  overlayLayer('tree-node-move-confirm', () => pendingMove !== null);
+
   const INDENT = 20;
 
   let hasChildren = $derived(nodeStore.getChildren(node.id).length > 0);

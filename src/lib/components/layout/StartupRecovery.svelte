@@ -1,6 +1,9 @@
 <script lang="ts">
   import { startupStore } from '$lib/stores/startup.svelte';
   import type { RecoveryCandidate } from '$lib/types/node';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
+
+  overlayLayer('startup-recovery', () => startupStore.needsAttention);
 
   let showDetail = $state(false);
   let dialogEl: HTMLElement | undefined = $state();
