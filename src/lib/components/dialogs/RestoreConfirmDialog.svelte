@@ -1,5 +1,8 @@
 <script lang="ts">
   import { restoreConfirm } from '$lib/stores/restore-confirm.svelte';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
+
+  overlayLayer('restore-confirm', () => restoreConfirm.isOpen);
 
   let dialogEl: HTMLElement | undefined = $state();
   let cancelEl: HTMLButtonElement | undefined = $state();

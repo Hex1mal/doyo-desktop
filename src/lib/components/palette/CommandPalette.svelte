@@ -3,6 +3,9 @@
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import * as api from '$lib/api/client';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
+
+  overlayLayer('command-palette', () => commandPaletteStore.isOpen);
 
   interface CommandItem {
     id: string;

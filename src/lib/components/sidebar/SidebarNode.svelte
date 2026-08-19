@@ -23,6 +23,7 @@
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
   import SidebarNode from './SidebarNode.svelte';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
 
   let { node, depth = 0 }: { node: Node; depth?: number } = $props();
 
@@ -31,6 +32,17 @@
   let isActive = $derived(nodeStore.selectedId === node.id && nodeStore.viewMode === 'tree');
   let parent = $derived(node.parentId ? nodeStore.get(node.parentId) : null);
   let showMenu = $state(false);
+
+  overlayLayer('sidebar-node-menu', () => showMenu, 'menu');
+
+  // The menu had no Escape handling and closed only on an outside click. Now
+  // that it holds the keyboard while open, it has to be dismissible from it.
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (showMenu && event.key === 'Escape') {
+      event.preventDefault();
+      showMenu = false;
+    }
+  }
   let menuX = $state(0);
   let menuY = $state(0);
   let dropPosition = $state<'before' | 'after' | null>(null);
@@ -273,6 +285,8 @@
     {/each}
   {/if}
 </div>
+
+<svelte:window onkeydown={handleWindowKeydown} />
 
 {#if showMenu}
   <!-- svelte-ignore a11y_no_static_element_interactions -->

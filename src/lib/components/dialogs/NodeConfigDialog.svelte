@@ -2,12 +2,18 @@
   import type { Node } from '$lib/types/node';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
 
   const colorOptions = ['#6366F1', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
   const viewOptions = ['list', 'kanban', 'timeline', 'calendar'];
 
   const node = $derived(
     uiStore.configDialogNodeId ? (nodeStore.get(uiStore.configDialogNodeId) ?? null) : null,
+  );
+
+  overlayLayer(
+    'node-config-dialog',
+    () => node !== null && (node.nodeType === 'Workspace' || node.nodeType === 'Group'),
   );
   let title = $state('');
   let icon = $state('');

@@ -3,6 +3,9 @@
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import * as api from '$lib/api/client';
   import type { Node } from '$lib/types/node';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
+
+  overlayLayer('quick-open', () => uiStore.quickOpenOpen);
 
   let query = $state('');
   let results = $state<Node[]>([]);

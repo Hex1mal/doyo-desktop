@@ -4,6 +4,7 @@
   import { uiStore } from '$lib/stores/ui.svelte';
   import type { Node, TimeBlock } from '$lib/types/node';
   import { itemDurationMinutes } from '$lib/utils/calendar';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
 
   let {
     task,
@@ -145,6 +146,8 @@
   // buttons and pushed the block's own title and time to the margins. They live
   // in a menu now: title and time first, actions on request.
   let menuOpen = $state(false);
+
+  overlayLayer('calendar-block-menu', () => menuOpen, 'menu');
   let menuX = $state(0);
   let menuY = $state(0);
   let menuEl: HTMLElement | undefined = $state();

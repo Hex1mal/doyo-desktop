@@ -2,10 +2,13 @@
   import type { Node } from '$lib/types/node';
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { uiStore } from '$lib/stores/ui.svelte';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
 
   const node = $derived(
     uiStore.moveDialogNodeId ? (nodeStore.get(uiStore.moveDialogNodeId) ?? null) : null,
   );
+
+  overlayLayer('move-dialog', () => node !== null);
   let error = $state('');
   let selectedIndex = $state(0);
   let previousNodeId = $state<string | null>(null);

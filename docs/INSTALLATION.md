@@ -4,11 +4,11 @@
 
 This is the path for normal use. No build tools are required.
 
-1. Download `Doyo_1.0.0_amd64.deb` from the [latest release](https://github.com/Hex1mal/doyo-desktop/releases/latest).
+1. Download `Doyo_1.0.1_amd64.deb` from the [latest release](https://github.com/Hex1mal/doyo-desktop/releases/latest).
 2. Install it from the directory you downloaded it into:
 
    ```bash
-   sudo apt install ./Doyo_1.0.0_amd64.deb
+   sudo apt install ./Doyo_1.0.1_amd64.deb
    ```
 
 To verify the download first, fetch `SHA256SUMS` from the same release and run `sha256sum -c SHA256SUMS` next to the package.

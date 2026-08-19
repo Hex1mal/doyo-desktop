@@ -14,6 +14,10 @@
     recurrenceFromChoice,
     reminderFromChoice,
   } from '$lib/utils/scheduling';
+  import { overlayLayer } from '$lib/stores/overlay.svelte';
+
+  // Mounted only while open, so the layer lasts the component's lifetime.
+  overlayLayer('due-date-prompt', () => true);
 
   const timePresets = ['09:00', '12:00', '14:00', '18:00'];
   const durationPresets = ['15m', '30m', '45m', '1h', '1h 30m'];
