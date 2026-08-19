@@ -40,9 +40,11 @@ Use additive migrations only. Register new migrations in `core/src/db/migrations
 
 ## Android
 
-An Android port is under evaluation. `docs/ANDROID.md` records the compatibility
-audit, the toolchain prerequisites, and what is not supported yet. No Android
-target has been generated, and the public README does not advertise Android.
+Doyo builds and runs on Android from the same codebase. `docs/ANDROID.md` covers
+the compatibility audit, the exact toolchain versions, the build and install
+commands, what has been verified on a device, and what is still missing. The
+mobile UX has not been built yet, and the public README does not advertise
+Android.
 
 ## Secret Scanning
 

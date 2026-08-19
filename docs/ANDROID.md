@@ -1,16 +1,12 @@
 # Android
 
-Status: **audit complete, target not initialized.**
+Status: **foundation working.** Doyo builds, installs, and runs on Android, and
+the core task workflow persists correctly. The mobile UX has not been built yet:
+what runs on a phone today is the desktop layout.
 
-This document records what an Android port of Doyo would share with the desktop
-app, what has to change, and what is required to build it. No Android target has
-been generated yet, because the build prerequisites are not installed on the
-development machine — see [Prerequisites](#prerequisites).
-
-Nothing here has been run on a device or emulator. Every statement about Android
-runtime behaviour below is marked as unverified unless it was checked against
-the current Tauri documentation, and even then it is a documentation claim, not
-a test result.
+Verified on a physical device — Samsung SM-S908U, arm64-v8a, Android 14 (SDK 34)
+— not an emulator. Anything below that has not been run on a device is called
+out as unverified.
 
 ## Why The Codebase Is A Good Candidate
 
@@ -106,83 +102,144 @@ full-screen sheet on Android.
 
 ## Prerequisites
 
-None of the Android toolchain is installed on this machine. Measured state:
+Verified working combination:
 
-| Requirement          | Status here                                                           |
-| -------------------- | --------------------------------------------------------------------- |
-| Android SDK          | missing (`ANDROID_HOME` unset, no `~/Android/Sdk`)                    |
-| Android NDK          | missing (`NDK_HOME` unset)                                            |
-| `sdkmanager`         | missing                                                               |
-| Emulator             | missing                                                               |
-| `adb`                | present (`/usr/bin/adb`)                                              |
-| Gradle               | present (system `/usr/bin/gradle`)                                    |
-| JDK                  | OpenJDK **25.0.3-ea** — newer than the Android Gradle Plugin supports |
-| Rust Android targets | none (`x86_64-unknown-linux-gnu` only)                                |
-| Tauri CLI            | 2.11.4, includes `tauri android`                                      |
+| Component            | Version                                   |
+| -------------------- | ----------------------------------------- |
+| Android SDK Platform | android-34                                |
+| Build tools          | 34.0.0                                    |
+| NDK                  | 27.1.12297006 (r27b)                      |
+| JDK                  | 21 (`/usr/lib/jvm/java-21-openjdk-amd64`) |
+| Gradle               | 8.14.3 (wrapper, downloaded by the build) |
+| Tauri CLI            | 2.11.4                                    |
+| Rust target          | `aarch64-linux-android`                   |
 
-Two things need attention before initialization:
-
-1. The SDK and NDK are a multi-gigabyte install. This machine has **30 GB free
-   (91% used)**, which is enough but not comfortable once Gradle caches and
-   Android Rust build artifacts are added.
-2. JDK 25 is an early-access build and is ahead of what the Android Gradle
-   Plugin supports. A JDK 17 or 21 will almost certainly be needed, selected per
-   project rather than by changing the system default.
+The system default JDK on the build machine is an early-access JDK 25, which the
+Android Gradle Plugin does not support. Do not change the system default: set
+`JAVA_HOME` for the Android commands only.
 
 ### Setup
 
-Install the command line tools and the SDK packages:
-
 ```bash
-# Android command line tools -> $HOME/Android/Sdk/cmdline-tools/latest
 export ANDROID_HOME="$HOME/Android/Sdk"
 sdkmanager --install "platform-tools" "platforms;android-34" \
-  "build-tools;34.0.0" "ndk;27.0.12077973"
+  "build-tools;34.0.0" "ndk;27.1.12297006"
+
+rustup target add aarch64-linux-android
 ```
 
-Point the environment at them, per shell rather than system-wide:
+Then, per shell, before any `tauri android` command:
 
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
-export NDK_HOME="$ANDROID_HOME/ndk/$(ls -1 $ANDROID_HOME/ndk | tail -1)"
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64   # not the ea JDK 25
+export NDK_HOME="$ANDROID_HOME/ndk/27.1.12297006"
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 ```
 
-Add the Rust targets:
+Pin `NDK_HOME` rather than globbing for the newest: installing the SDK can pull
+in a second NDK as a dependency, and "latest" then silently changes toolchain.
 
-```bash
-rustup target add aarch64-linux-android armv7-linux-androideabi \
-  i686-linux-android x86_64-linux-android
-```
+Building all four ABIs is not necessary for device testing. `--target aarch64`
+covers current phones and avoids three extra Rust toolchains.
 
 ### Initialization
-
-Once the above resolve, generate the Android project with Tauri rather than
-hand-writing one:
 
 ```bash
 npm run tauri android init
 ```
 
-This writes `src-tauri/gen/android/`. Two things to check immediately
-afterwards, because they are easy to break:
+This generated `src-tauri/gen/android/` — 40 tracked files, plus Tauri's own
+`.gitignore` entries for build output, `local.properties`, `tauri.properties`
+and the `jniLibs` symlinks. None of the tracked files contain machine-specific
+absolute paths. `tauri android init` also installs the other three Rust Android
+targets whether or not they are needed.
 
-- `src-tauri/tauri.conf.json` must keep `identifier` and the desktop `bundle`
-  configuration unchanged. Desktop `.deb` packaging must not move.
-- `src-tauri/capabilities/default.json` currently points at
-  `../gen/schemas/desktop-schema.json` and lists `"windows": ["main"]`. A mobile
-  capability set is generated separately; the desktop file must keep working.
+Two things had to change in the repository, both additive:
 
-Every generated file should be recorded in this document when it is created.
+- `src-tauri/Cargo.toml` gained a `[lib]` block with
+  `crate-type = ["staticlib", "cdylib", "rlib"]`. Android loads the app as a
+  shared library rather than executing a binary, and without this the build
+  fails at packaging with `Library artifact not found ... libdoyo.so`. The lib
+  name stays `doyo`, so `main.rs` still links the rlib and the desktop binary is
+  byte-for-byte equivalent in behaviour. Desktop `.deb` packaging, the bundle
+  identifier and `bundle.targets` are unchanged.
+- `.prettierignore` gained `src-tauri/gen/android/`, because the generated
+  `assets/tauri.conf.json` is not Prettier-formatted and would otherwise fail
+  `npm run lint` for anyone who has run `android init`. CI never runs it, so CI
+  was never affected.
 
-### Dev And Device Workflow
+`src-tauri/capabilities/default.json` still references the desktop schema and
+`"windows": ["main"]`, and did not need changing for the app to run.
+
+### Build And Install
 
 ```bash
-npm run tauri android dev            # emulator or attached device
-npm run tauri android build --debug  # development APK
-adb devices                          # confirm the target is attached
-adb install -r <path-to-apk>
+npm run tauri android build --debug --target aarch64
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+adb shell am start -n io.github.hex1mal.doyo/.MainActivity
 ```
+
+The debug APK is ~157 MB because the unstripped `libdoyo.so` is ~150 MB of it.
+A release build strips symbols; the debug size is not indicative.
+
+## What Has Been Verified On Device
+
+The first milestone — "Doyo launches on Android and the core task workflow works
+correctly with local persistence" — is met. The whole target flow was performed
+through the UI on the device:
+
+```text
+launch -> first-run database -> create workspace -> create group
+      -> create task -> nested subtask -> rename -> due date -> priority
+      -> tag -> complete -> force-stop -> reopen -> data intact
+```
+
+Confirmed:
+
+- **First-run database** created at
+  `/data/data/io.github.hex1mal.doyo/doyo.db`, inside app-private storage. No
+  storage permission is requested or needed.
+- **Migrations ran**: `schema_version` reached 6, the same as desktop.
+- **WAL** is active, as on desktop.
+- **Persistence across process death**: `adb shell am force-stop` then relaunch
+  kept all 5 nodes, the tag, and the completion state.
+- **Integrity**: `PRAGMA integrity_check` returns `ok` and
+  `PRAGMA foreign_key_check` is clean, read from the device's own database file
+  with its WAL.
+- **Hierarchy**: `Workspace -> Group -> Task -> Subtask` parentage is correct.
+- **Completion policy**: completing a parent with `Individual` left the subtask
+  open, as on desktop.
+- **Text entry** through the soft keyboard, including spaces, commits on blur.
+- **Background and resume**: `HOME` then relaunch kept the same process and
+  state, with no crash.
+- **Notification permissions**: the plugin merged `POST_NOTIFICATIONS`,
+  `WAKE_LOCK` and `RECEIVE_BOOT_COMPLETED` into the manifest. Permissions being
+  present is not the same as reminders working; see below.
+
+The Rust core, `doyo-core`, and `rusqlite` with bundled SQLite all cross-compile
+for `aarch64-linux-android` without a single source change.
+
+## Problems Found On Device
+
+These are observed, not predicted:
+
+- **System Back exits the app.** Pressing Back on the main view terminates Doyo
+  and returns to the launcher. Nothing maps Back to the view stack, so it will
+  also discard an open dialog or inspector rather than closing it. This is the
+  most urgent mobile defect.
+- **No safe-area handling.** The Doyo header renders underneath the system
+  status bar, and the status bar at the bottom sits under the gesture bar.
+- **The layout is wider than the screen.** The sidebar, tree and inspector are
+  all laid out at desktop widths, so the shell scrolls horizontally and the
+  inspector is cut off until it is scrolled to.
+- **Enter in a text field triggers the desktop shortcut.** Committing a title
+  with the soft keyboard's Enter also fired "create sibling" and produced an
+  empty node. The global keyboard handler does not know it is on a phone.
+- **Touch targets are desktop-sized.** The navigation rail buttons are 32-36px
+  against a 48dp guideline.
+
+None of these are architectural. They are all in the presentation layer.
 
 ## Mobile UX Requirements
 
@@ -222,19 +279,27 @@ ceiling, with the rest grouped underneath.
 Nothing in this list may be described as working until it has been run on a
 device.
 
-- **Everything.** No Android build has been produced.
+- **The mobile UX itself.** What runs today is the desktop layout on a phone.
+  See "Problems Found On Device".
 - **Reminders while the app is closed.** The desktop app cannot do this and says
-  so. On Android the plugin exposes `Schedule.at()`, `ScheduleEvery`,
-  `allowWhileIdle`, `pending()` and `cancel()`, which map to Android's alarm
-  scheduling, so it is likely achievable _without_ custom Kotlin. Doyo does not
-  use that API today. Until it is implemented and observed firing with the app
-  closed, the closed-app claim stays false on Android too.
-- **Focus timers across background/resume.** The current timer is a WebView
-  `setInterval`. It will drift or stop when the app is backgrounded. The fix is
-  to persist the start timestamp and recompute on resume, which is also more
-  correct on desktop.
+  so. On Android the notification plugin exposes `Schedule.at()`,
+  `ScheduleEvery`, `allowWhileIdle`, `pending()` and `cancel()`, and the build
+  already carries `WAKE_LOCK` and `RECEIVE_BOOT_COMPLETED`, so it looks
+  achievable without custom Kotlin. Doyo does not use that API today. Until it
+  is implemented and observed firing with the app closed, the closed-app claim
+  stays false on Android too.
+- **Focus timers across background and process death.** Not exercised. The
+  current timer is a WebView `setInterval` and will drift or stop when
+  backgrounded. Persisting the start timestamp and recomputing on resume is
+  also more correct on desktop.
+- **Notification delivery.** The permissions are in the manifest; no
+  notification has been observed on the device.
 - **`navigator.clipboard`** in the Android WebView, which the export flow
-  depends on.
+  depends on. Not exercised.
+- **Backup and restore on Android.** Not exercised.
+- **Rotation and configuration changes.** Not exercised.
+- **Other ABIs.** Only `arm64-v8a` was built and run.
+- **Release builds and signing.** Only an unsigned debug build exists.
 - **Attachments.** Not a shipped feature on desktop either.
 - **Google Play.** Out of scope. No signing keys, no Play Console, no published
   artifacts.
@@ -243,17 +308,18 @@ device.
 
 In priority order:
 
-1. Install the prerequisites and run `tauri android init`; record the generated
-   files and confirm desktop packaging is unaffected.
-2. Get a debug APK to launch, and prove the first-run database is created in
-   app-private storage.
-3. Prove the core task workflow end to end: workspace, group, task, subtask,
-   edit, due date, priority, tag, complete — then kill the process, reopen, and
-   confirm the data and `PRAGMA integrity_check` are intact.
-4. Wire Android system Back to the view stack.
-5. Replace the hover-only and right-click-only affordances with touch paths,
-   starting with the tree row context menu.
-6. Bottom navigation and the inspector-as-sheet presentation.
-7. Timer correctness across background, resume, and process death.
+1. Map Android system Back to the view stack: dialog, then inspector, then
+   nested screen, then exit. Today Back exits from anywhere.
+2. Safe-area insets, so the header and status bar are not under the system UI.
+3. Stop the shell scrolling horizontally: the sidebar and inspector need mobile
+   presentations rather than desktop widths.
+4. Gate the global keyboard handler so soft-keyboard Enter does not fire desktop
+   shortcuts.
+5. Touch targets and the hover-only affordances: 9 components reveal controls on
+   hover, 3 depend on right click.
+6. Bottom navigation, and the inspector as a full-screen sheet.
+7. Timer correctness across background, resume and process death.
 8. Reminder scheduling through the notification plugin's `Schedule` API, then
    verify delivery with the app closed.
+9. Backup, restore, import and export on Android.
+10. Release build, signing, and only then any store discussion.
