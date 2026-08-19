@@ -1,18 +1,28 @@
 title = "Doyo gitleaks configuration"
 
+# Keep every rule from the bundled gitleaks default configuration.
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "LocalStorage preference keys are not secrets"
-paths = [
-  '''src/lib/stores/reminders\.svelte\.ts''',
-  '''src/lib/stores/ui\.svelte\.ts''',
-]
-regexes = [
-  '''doyo\.sentReminderKeys\.v1''',
-  '''todoapp\.sentReminderKeys\.v1''',
-  '''doyo\.uiPrefs\.v1''',
-  '''todoapp\.uiPrefs\.v1''',
-]
+# Doyo stores UI preferences in localStorage under versioned key names such as
+# `doyo.uiPrefs.v1`. Because the surrounding constants are named `PREF_KEY` and
+# `SENT_KEY`, the default `generic-api-key` rule reads the key *name* as a
+# credential value. These are compile-time constants, not secrets.
+#
+# The allowlist below is attached to the `generic-api-key` rule only, and matches
+# the detected secret against Doyo's localStorage naming convention
+# (`doyo|todoapp` + name + `.v<N>`). Scoping it this way means:
+#   - no file or directory is exempted from scanning
+#   - every other rule (aws-access-token, github-pat, ...) still applies to these
+#     files, including the two stores the finding originates from
+#   - a real credential in the same file and on the same line is still reported
+#
+# NOTE: this must be expressed as a rule-scoped `[[rules.allowlists]]`.
+# A top-level `[[allowlists]]` array is silently ignored by gitleaks 8.24.3,
+# which is the version CI runs; see docs/DEVELOPMENT.md.
+[[rules]]
+id = "generic-api-key"
 
+  [[rules.allowlists]]
+  description = "Doyo localStorage preference key names are not credentials"
+  regexes = ['''^(?:doyo|todoapp)\.[A-Za-z0-9]+\.v[0-9]+$''']

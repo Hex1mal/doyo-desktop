@@ -16,6 +16,7 @@
   import { nodeStore } from '$lib/stores/nodes.svelte';
   import { reminderStore } from '$lib/stores/reminders.svelte';
   import StartupRecovery from '$lib/components/layout/StartupRecovery.svelte';
+  import RestoreConfirmDialog from '$lib/components/dialogs/RestoreConfirmDialog.svelte';
   import { startupStore } from '$lib/stores/startup.svelte';
 
   let didBootstrap = false;
@@ -154,6 +155,7 @@
 {/if}
 <ToastHost />
 <StartupRecovery />
+<RestoreConfirmDialog />
 {#if uiStore.zoomFeedback}
   <div class="zoom-feedback" role="status">{uiStore.zoomFeedback}</div>
 {/if}

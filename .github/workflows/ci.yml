@@ -46,6 +46,11 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pinned so the scanner CI runs matches the one .gitleaks.toml is
+          # tested against. Without this the action silently follows its own
+          # bundled default, and allowlist syntax that works locally can be
+          # ignored here. Keep in sync with docs/DEVELOPMENT.md.
+          GITLEAKS_VERSION: '8.24.3'
 
       - name: Formatting
         run: npm run lint

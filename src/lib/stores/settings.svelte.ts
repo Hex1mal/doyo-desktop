@@ -9,6 +9,7 @@ import {
 } from '$lib/api/client';
 import { toast } from '$lib/stores/toast.svelte';
 import { applyRestoreOutcome } from '$lib/stores/restore';
+import { restoreConfirm } from '$lib/stores/restore-confirm.svelte';
 
 export type SettingsPanel =
   | 'general'
@@ -108,12 +109,7 @@ export const settingsStore = {
   },
 
   async restoreBackup(name: string) {
-    if (
-      !window.confirm(
-        'Restore this backup?\n\nYour current data is snapshotted first, so this can be undone.',
-      )
-    )
-      return false;
+    if (!(await restoreConfirm.request(name))) return false;
     try {
       const prefs = await this.get('backup.preferences.v1', {
         createSafetyBackupBeforeRestore: true,

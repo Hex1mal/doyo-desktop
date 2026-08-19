@@ -140,6 +140,62 @@
     window.addEventListener('pointerup', handleUp);
   }
 
+  // Time blocks carry five actions. Rendering them inline put Link/Unlink/-30/
+  // +30/Delete on every block in every view, which left a month cell mostly
+  // buttons and pushed the block's own title and time to the margins. They live
+  // in a menu now: title and time first, actions on request.
+  let menuOpen = $state(false);
+  let menuX = $state(0);
+  let menuY = $state(0);
+  let menuEl: HTMLElement | undefined = $state();
+  let menuTriggerEl: HTMLButtonElement | undefined = $state();
+
+  const MENU_WIDTH = 200;
+  const MENU_HEIGHT = 196;
+
+  function openMenu(event: MouseEvent) {
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    // Fixed positioning, because month day cells clip their overflow.
+    menuX = Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8));
+    menuY =
+      rect.bottom + MENU_HEIGHT > window.innerHeight - 8
+        ? Math.max(8, rect.top - MENU_HEIGHT - 4)
+        : rect.bottom + 4;
+    menuOpen = true;
+    queueMicrotask(() => menuEl?.querySelector('button')?.focus());
+  }
+
+  function closeMenu(refocus = true) {
+    if (!menuOpen) return;
+    menuOpen = false;
+    if (refocus) queueMicrotask(() => menuTriggerEl?.focus());
+  }
+
+  function runAction(action: () => void) {
+    closeMenu();
+    action();
+  }
+
+  function menuKeydown(event: KeyboardEvent) {
+    // Global shortcuts are bound on window and would otherwise act on the tree
+    // while this menu has focus.
+    event.stopPropagation();
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Tab') return;
+    const items = [...(menuEl?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const step = event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey) ? -1 : 1;
+    event.preventDefault();
+    items[(current + step + items.length) % items.length].focus();
+  }
+
   function selectOnKey(event: KeyboardEvent, node: Node) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -216,37 +272,96 @@
     onpointercancel={cancelPointerDrag}
     title={block.notes}
   >
-    <strong>{block.title || 'Planning block'}</strong>
+    <strong class="block-title">{block.title || 'Planning block'}</strong>
     <span class="time">
-      {new Date(block.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      -
-      {new Date(block.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {new Date(block.startTime).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}{#if !compact}
+        -
+        {new Date(block.endTime).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}{/if}
     </span>
-    <span>{itemDurationMinutes(block)}m</span>
-    <div class="block-actions">
-      <button title="Link selected task" onclick={() => calendarStore.linkSelectedTask(block.id)}
-        >Link</button
+    {#if !compact}
+      <span class="duration">{itemDurationMinutes(block)}m</span>
+    {/if}
+    <button
+      bind:this={menuTriggerEl}
+      type="button"
+      class="more"
+      class:open={menuOpen}
+      title="Time block actions"
+      aria-label="Actions for {block.title || 'Planning block'}"
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+      onclick={openMenu}>⋯</button
+    >
+    {#if !compact}
+      <button
+        class="resize-handle"
+        class:resizing
+        title="Drag to resize"
+        aria-label="Drag to resize time block"
+        onpointerdown={beginResize}>↕</button
       >
-      <button title="Unlink task" onclick={() => calendarStore.unlinkBlock(block.id)}>Unlink</button
+    {/if}
+  </div>
+
+  {#if menuOpen}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      class="menu-backdrop"
+      onclick={() => closeMenu()}
+      oncontextmenu={(e) => {
+        e.preventDefault();
+        closeMenu();
+      }}
+    ></div>
+    <div
+      bind:this={menuEl}
+      class="block-menu"
+      role="menu"
+      aria-label="Time block actions"
+      tabindex="-1"
+      style="left: {menuX}px; top: {menuY}px;"
+      onkeydown={menuKeydown}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => runAction(() => calendarStore.linkSelectedTask(block.id))}
+        >Link selected task</button
       >
-      <button title="Shorten by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, -30)}
-        >-30</button
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => runAction(() => calendarStore.unlinkBlock(block.id))}>Unlink task</button
       >
-      <button title="Extend by 30 minutes" onclick={() => calendarStore.resizeBlock(block.id, 30)}
-        >+30</button
+      <div class="menu-separator"></div>
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => runAction(() => calendarStore.resizeBlock(block.id, -30))}
+        >Shorten by 30 minutes</button
       >
-      <button title="Delete block" onclick={() => calendarStore.deleteBlock(block.id)}
-        >Delete</button
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => runAction(() => calendarStore.resizeBlock(block.id, 30))}
+        >Extend by 30 minutes</button
+      >
+      <div class="menu-separator"></div>
+      <button
+        type="button"
+        role="menuitem"
+        class="destructive"
+        onclick={() => runAction(() => calendarStore.deleteBlock(block.id))}>Delete block</button
       >
     </div>
-    <button
-      class="resize-handle"
-      class:resizing
-      title="Drag to resize"
-      aria-label="Drag to resize time block"
-      onpointerdown={beginResize}>↕</button
-    >
-  </div>
+  {/if}
 {/if}
 
 <style>
@@ -281,14 +396,39 @@
   }
   .calendar-item.block {
     background: rgba(99, 102, 241, 0.12);
-    flex-wrap: wrap;
+  }
+  /* Non-compact blocks keep the drag handle pinned right; leave room for it so
+     the menu trigger does not sit underneath it. */
+  .calendar-item.block:not(.compact) .more {
+    margin-right: 24px;
+  }
+  /* The block's own title is the thing being scheduled, so it gets the flexible
+     space and truncates rather than pushing the time out of the cell. */
+  .block-title {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .duration {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    flex-shrink: 0;
   }
   .item-title {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
+    flex: 1 1 auto;
+  }
+  /* Reserve enough room for a few characters of the title before the metadata
+     beside it is allowed to take the rest of a narrow month cell. */
+  .calendar-item.compact .item-title,
+  .calendar-item.compact .block-title {
+    flex-basis: 50%;
   }
   .check {
     width: 14px;
@@ -313,6 +453,18 @@
     font-size: 10px;
     flex-shrink: 0;
   }
+  /* Month cells are narrow. What is scheduled matters more than exactly when, so
+     let the supporting metadata give way before the title does. */
+  .calendar-item.compact .time,
+  .calendar-item.compact .priority,
+  .calendar-item.compact .tag {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    /* Clip rather than wrap: a wrapped time doubles the row height and takes the
+       space back from the title it was supposed to yield to. */
+    white-space: nowrap;
+  }
   .priority {
     color: var(--warning);
     font-weight: 800;
@@ -322,19 +474,92 @@
     border-radius: 999px;
     padding: 0 4px;
   }
-  .block-actions {
-    display: flex;
-    gap: 4px;
+  /* Sits quietly until the block is hovered or focused, so a month cell reads as
+     its blocks rather than as a grid of buttons. Kept in the DOM at all times so
+     it stays reachable by keyboard, where :focus-visible reveals it. */
+  .more {
     margin-left: auto;
-    margin-right: 24px;
-  }
-  .block-actions button {
-    border: 1px solid var(--border);
-    background: var(--bg-panel);
-    color: var(--text-tertiary);
+    flex-shrink: 0;
+    width: 20px;
+    height: 18px;
+    border: 1px solid transparent;
     border-radius: 4px;
-    font-size: 10px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 1;
     cursor: pointer;
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+  .calendar-item.block:hover .more,
+  .more:focus-visible,
+  .more.open {
+    opacity: 1;
+    border-color: var(--border);
+    background: var(--bg-panel);
+  }
+  .more:hover {
+    color: var(--text-primary);
+  }
+  .more:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  /* In a month cell the 25px this reserves is worth more to the title than to a
+     control that is invisible until the block is hovered, so take it out of the
+     flow there and let it sit over the right edge when it appears. */
+  .calendar-item.compact .more {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 0;
+  }
+
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+  }
+  .block-menu {
+    position: fixed;
+    z-index: 901;
+    width: 200px;
+    background: var(--bg-modal);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+  }
+  .block-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .block-menu button:hover {
+    background: var(--bg-hover);
+  }
+  .block-menu button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .block-menu button.destructive {
+    color: var(--danger);
+  }
+  .menu-separator {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border);
   }
   .resize-handle {
     position: absolute;
