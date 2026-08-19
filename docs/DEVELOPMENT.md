@@ -38,6 +38,14 @@ Use additive migrations only. Register new migrations in `core/src/db/migrations
 - Optional importers and exporters for common task formats
 - Accessibility and keyboard workflow refinements
 
+## Android
+
+Doyo builds and runs on Android from the same codebase. `docs/ANDROID.md` covers
+the compatibility audit, the exact toolchain versions, the build and install
+commands, what has been verified on a device, and what is still missing. The
+mobile UX has not been built yet, and the public README does not advertise
+Android.
+
 ## Secret Scanning
 
 CI runs `gitleaks/gitleaks-action@v2`, which executes `gitleaks detect` over the
