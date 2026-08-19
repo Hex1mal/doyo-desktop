@@ -4,6 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+# Android loads the app as a shared library rather than executing a binary, so
+# the crate has to produce a cdylib as well. The name stays `doyo`, so
+# main.rs still links the rlib and the desktop binary is unchanged.
+[lib]
+name = "doyo"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
